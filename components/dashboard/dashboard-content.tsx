@@ -73,9 +73,8 @@ export function DashboardContent() {
       .then((data) => {
         if (cancelled) return
         setRepos(data)
-        if (data.length > 0) {
-          setSelectedRepo(String(data[0].id))
-        }
+        // Default to the global view across all repos.
+        setSelectedRepo("-1")
       })
       .catch((err: unknown) => {
         if (cancelled) return
@@ -94,7 +93,7 @@ export function DashboardContent() {
   useEffect(() => {
     if (!selectedRepo) return
     const repoId = Number(selectedRepo)
-    if (!Number.isFinite(repoId) || repoId <= 0) return
+    if (!Number.isFinite(repoId) || repoId === 0) return
 
     const startParsed = parseMonth(chartStartMonth)
     const endParsed = parseMonth(chartEndMonth)
@@ -157,7 +156,7 @@ export function DashboardContent() {
   useEffect(() => {
     if (!selectedRepo) return
     const repoId = Number(selectedRepo)
-    if (!Number.isFinite(repoId) || repoId <= 0) return
+    if (!Number.isFinite(repoId) || repoId === 0) return
     const [yearStr, monthStr] = selectedMonth.split("-")
     const year = Number(yearStr)
     const month = Number(monthStr)
@@ -202,18 +201,22 @@ export function DashboardContent() {
 
   const repoOptions: RepoOption[] = useMemo(
     () =>
-      repos.map((repo) => ({
-        id: String(repo.id),
-        label: repo.repo_key || repo.name,
-      })),
+      [
+        { id: "-1", label: "所有仓库" },
+        ...repos.map((repo) => ({
+          id: String(repo.id),
+          label: repo.repo_key || repo.name,
+        })),
+      ],
     [repos],
   )
 
   const selectedRepoLabel = useMemo(() => {
-    return repoOptions.find((r) => r.id === selectedRepo)?.label ?? "No repo"
+    return repoOptions.find((r) => r.id === selectedRepo)?.label ?? "未选择仓库"
   }, [repoOptions, selectedRepo])
 
   const selectedRepoWebUrl = useMemo(() => {
+    if (selectedRepo === "-1") return null
     return repos.find((r) => String(r.id) === selectedRepo)?.web_url ?? null
   }, [repos, selectedRepo])
 
@@ -225,7 +228,9 @@ export function DashboardContent() {
             Git 提交指标
           </h1>
           <p className="mt-1 max-w-full truncate text-sm text-muted-foreground">
-            {selectedRepoLabel} 的实时统计
+            {selectedRepo === "-1"
+              ? "所有仓库的实时统计"
+              : `${selectedRepoLabel} 的实时统计`}
           </p>
         </div>
 
@@ -277,6 +282,7 @@ export function DashboardContent() {
             endMonth={chartEndMonth}
             onStartMonthChange={handleChartStartChange}
             onEndMonthChange={handleChartEndChange}
+            onMonthSelect={setSelectedMonth}
           />
           <Leaderboard
             repoId={Number(selectedRepo)}

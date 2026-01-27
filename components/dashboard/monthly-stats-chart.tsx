@@ -29,6 +29,7 @@ interface MonthlyStatsChartProps {
   endMonth: string
   onStartMonthChange: (value: string) => void
   onEndMonthChange: (value: string) => void
+  onMonthSelect?: (value: string) => void
 }
 
 function getRecentMonths(count: number): Array<{ value: string; label: string }> {
@@ -53,6 +54,7 @@ export function MonthlyStatsChart({
   endMonth,
   onStartMonthChange,
   onEndMonthChange,
+  onMonthSelect,
 }: MonthlyStatsChartProps) {
   const [mode, setMode] = useState<"both" | "added" | "removed">("both")
 
@@ -86,6 +88,12 @@ export function MonthlyStatsChart({
           0,
         ) / chartData.length
       : 0
+
+  const handleBarClick = (data: unknown) => {
+    if (!onMonthSelect) return
+    const month = (data as { payload?: { month?: string } })?.payload?.month
+    if (month) onMonthSelect(month)
+  }
 
   return (
     <div className="flex h-full flex-col rounded-lg border border-border bg-card p-6">
@@ -208,6 +216,7 @@ export function MonthlyStatsChart({
                   name="每人每工作日增加"
                   fill="oklch(0.6 0.18 160)"
                   radius={[4, 4, 0, 0]}
+                  onClick={handleBarClick}
                 />
               )}
               {(mode === "both" || mode === "removed") && (
@@ -216,6 +225,7 @@ export function MonthlyStatsChart({
                   name="每人每工作日减少"
                   fill="oklch(0.62 0.2 30)"
                   radius={[4, 4, 0, 0]}
+                  onClick={handleBarClick}
                 />
               )}
             </BarChart>

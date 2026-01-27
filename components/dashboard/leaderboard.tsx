@@ -105,6 +105,7 @@ export function Leaderboard({
   onMonthChange,
 }: LeaderboardProps) {
   const items = data?.items ?? []
+  const isGlobalRepo = repoId === -1
 
   const monthOptions = useMemo(() => {
     const recent = getRecentMonths(12)
@@ -134,7 +135,7 @@ export function Leaderboard({
 
   useEffect(() => {
     if (!dialogOpen || !activeUser || !monthAnchor) return
-    if (!Number.isFinite(repoId) || repoId <= 0) return
+    if (!Number.isFinite(repoId) || repoId === 0) return
 
     let cancelled = false
     setCommitLoading(true)
@@ -175,9 +176,10 @@ export function Leaderboard({
     setDialogOpen(true)
   }
 
-  const buildCommitUrl = (sha: string) => {
-    if (!repoWebUrl) return null
-    const base = repoWebUrl.replace(/\/+$/, "")
+  const buildCommitUrl = (sha: string, repoUrl?: string | null) => {
+    const url = repoUrl ?? repoWebUrl
+    if (!url) return null
+    const base = url.replace(/\/+$/, "")
     return `${base}/-/commit/${sha}`
   }
 
@@ -190,7 +192,9 @@ export function Leaderboard({
               提交排行榜
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              点击某一行查看该用户当月提交明细
+              {isGlobalRepo
+                ? "点击某一行查看该用户在所有仓库的当月提交明细"
+                : "点击某一行查看该用户当月提交明细"}
             </p>
           </div>
 
@@ -333,6 +337,7 @@ export function Leaderboard({
                   <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <th className="px-4 py-3 whitespace-nowrap">时间</th>
                     <th className="px-4 py-3 whitespace-nowrap">SHA</th>
+                    <th className="px-4 py-3 whitespace-nowrap">仓库</th>
                     <th className="px-4 py-3 w-[55%]">提交信息</th>
                     <th className="px-4 py-3 text-right">新增</th>
                     <th className="px-4 py-3 text-right">删除</th>
@@ -346,9 +351,9 @@ export function Leaderboard({
                         {formatDateTime(c.committed_at)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-card-foreground">
-                        {buildCommitUrl(c.commit_sha) ? (
+                        {buildCommitUrl(c.commit_sha, c.repo_web_url) ? (
                           <a
-                            href={buildCommitUrl(c.commit_sha) as string}
+                            href={buildCommitUrl(c.commit_sha, c.repo_web_url) as string}
                             target="_blank"
                             rel="noreferrer"
                             className="text-primary underline-offset-2 hover:underline"
@@ -358,6 +363,9 @@ export function Leaderboard({
                         ) : (
                           c.commit_sha.slice(0, 8)
                         )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-card-foreground">
+                        {c.repo_name ?? "-"}
                       </td>
                       <td className="px-4 py-3 max-w-[640px] whitespace-pre-wrap break-words text-card-foreground">
                         {c.message?.trim() || "-"}

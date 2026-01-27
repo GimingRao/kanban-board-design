@@ -93,6 +93,10 @@ export interface UserCommitItemDto {
   deletions: number
   files_changed: number
   message?: string | null
+  // Present in global repo_id=-1 mode.
+  repo_id?: number
+  repo_name?: string | null
+  repo_web_url?: string | null
 }
 
 export interface UserCommitsDto {
