@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { cn } from "@/lib/utils"
 
@@ -10,6 +10,7 @@ interface Tab {
 
 const tabs: Tab[] = [
   { id: "dashboard", label: "看板" },
+  { id: "dept-users", label: "用户与部门管理" },
   { id: "skills", label: "Skills", disabled: true },
   { id: "mcp", label: "MCP", disabled: true },
 ]

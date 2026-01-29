@@ -17,6 +17,56 @@ async function getJson<T>(path: string): Promise<T> {
   return (await res.json()) as T
 }
 
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`Request failed: ${res.status} ${res.statusText} ${text}`)
+  }
+
+  return (await res.json()) as T
+}
+
+async function deleteJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`Request failed: ${res.status} ${res.statusText} ${text}`)
+  }
+
+  return (await res.json()) as T
+}
+
+async function patchJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`Request failed: ${res.status} ${res.statusText} ${text}`)
+  }
+
+  return (await res.json()) as T
+}
+
 function monthAnchorQuery(anchor?: { year?: number; month?: number }): string {
   if (!anchor?.year || !anchor?.month) return ""
   return `&year=${anchor.year}&month=${anchor.month}`
@@ -165,4 +215,95 @@ export function fetchUserCommits(
   return getJson<UserCommitsDto>(
     `/repos/${repoId}/users/${userId}/commits?year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}`,
   )
+}
+
+// ==================== Departments & Users ====================
+
+export interface DepartmentNodeDto {
+  id: number
+  name: string
+  parent_id: number | null
+}
+
+export interface DepartmentUserDto {
+  id: number
+  name: string
+  title: string
+  email: string
+  department_id: number | null
+}
+
+export interface DepartmentUsersDto {
+  department_id: number
+  users: DepartmentUserDto[]
+}
+
+export function fetchDepartmentsTree(): Promise<DepartmentNodeDto[]> {
+  return getJson<DepartmentNodeDto[]>("/departments/tree")
+}
+
+export function fetchDepartmentUsers(
+  departmentId: number,
+): Promise<DepartmentUserDto[]> {
+  return getJson<DepartmentUserDto[]>(`/departments/${departmentId}/users`)
+}
+
+export interface CreateDepartmentDto {
+  name: string
+  parent_id?: number | null
+}
+
+export interface DeleteDepartmentResponseDto {
+  deleted: boolean
+  id: number
+}
+
+export function createDepartment(
+  data: CreateDepartmentDto,
+): Promise<DepartmentNodeDto> {
+  return postJson<DepartmentNodeDto>("/departments", data)
+}
+
+export function deleteDepartment(
+  departmentId: number,
+): Promise<DeleteDepartmentResponseDto> {
+  return deleteJson<DeleteDepartmentResponseDto>(`/departments/${departmentId}`)
+}
+
+export interface UpdateUserDto {
+  name?: string
+  email?: string
+  department_id?: number | null
+}
+
+export interface UpdatedUserDto {
+  id: number
+  repo_id: number
+  gitlab_user_id: number
+  username: string
+  name: string
+  email: string
+  department_id: number | null
+}
+
+export function updateUser(
+  userId: number,
+  data: UpdateUserDto,
+): Promise<UpdatedUserDto> {
+  return patchJson<UpdatedUserDto>(`/users/${userId}`, data)
+}
+
+export interface BatchUpdateDepartmentDto {
+  user_ids: number[]
+  department_id: number | null
+}
+
+export interface BatchUpdateDepartmentResponseDto {
+  updated: number
+}
+
+export function batchUpdateUsersDepartment(
+  data: BatchUpdateDepartmentDto,
+): Promise<BatchUpdateDepartmentResponseDto> {
+  return patchJson<BatchUpdateDepartmentResponseDto>("/users/department", data)
 }
