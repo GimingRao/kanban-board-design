@@ -4,6 +4,9 @@ import { useState } from "react"
 import { Header } from "@/components/dashboard/header"
 import { DepartmentsUsers } from "@/components/dashboard/departments-users"
 import { AiRatioBoardContent } from "@/components/ai-ratio-board"
+import { SkillsManagement } from "@/components/skills/skills-management"
+import { McpManagement } from "@/components/mcp/mcp-management"
+import { McpCatalog } from "@/components/mcp-catalog/mcp-catalog"
 
 export default function Page() {
   const [activeTab, setActiveTab] = useState("ai-ratio")
@@ -14,6 +17,12 @@ export default function Page() {
         return <AiRatioBoardContent />
       case "dept-users":
         return <DepartmentsUsers />
+      case "skills":
+        return <SkillsManagement />
+      case "mcp":
+        return <McpManagement />
+      case "mcp-catalog":
+        return <McpCatalog />
       default:
         return <AiRatioBoardContent />
     }

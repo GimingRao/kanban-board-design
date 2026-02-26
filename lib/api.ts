@@ -1,6 +1,6 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-  "http://localhost:8000"
+  "http://192.168.2.121:8000"
 
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
