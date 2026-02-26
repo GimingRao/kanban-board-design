@@ -106,6 +106,8 @@ export function Leaderboard({
 }: LeaderboardProps) {
   const items = data?.items ?? []
   const isGlobalRepo = repoId === -1
+  // 判断是否是组织视图的"所有部门"视图
+  const isAllDepartmentsView = repoId === -1000
 
   const monthOptions = useMemo(() => {
     const recent = getRecentMonths(12)
@@ -137,7 +139,7 @@ export function Leaderboard({
     if (!dialogOpen || !activeUser || !monthAnchor) return
     if (!Number.isFinite(repoId) || repoId === 0) return
 
-    let cancelled = false
+    const abortController = new AbortController()
     setCommitLoading(true)
     setCommitError(null)
 
@@ -146,23 +148,23 @@ export function Leaderboard({
       month: monthAnchor.month,
       page: commitPage,
       pageSize: 10,
-    })
+    }, abortController.signal)
       .then((res) => {
-        if (cancelled) return
+        if (abortController.signal.aborted) return
         setCommitData(res)
       })
       .catch((err: unknown) => {
-        if (cancelled) return
+        if (abortController.signal.aborted) return
         const message = err instanceof Error ? err.message : "加载提交明细失败"
         setCommitError(message)
         setCommitData(null)
       })
       .finally(() => {
-        if (!cancelled) setCommitLoading(false)
+        if (!abortController.signal.aborted) setCommitLoading(false)
       })
 
     return () => {
-      cancelled = true
+      abortController.abort()
     }
   }, [dialogOpen, activeUser, monthAnchor, repoId, commitPage])
 
@@ -231,6 +233,7 @@ export function Leaderboard({
               <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 <th className="px-6 py-3">排名</th>
                 <th className="px-6 py-3">开发者</th>
+                {isAllDepartmentsView && <th className="px-6 py-3">部门</th>}
                 <th className="px-6 py-3 text-right">日均新增</th>
                 <th className="px-6 py-3 text-right">日均删除</th>
                 <th className="px-6 py-3 text-right">提交数</th>
@@ -239,15 +242,26 @@ export function Leaderboard({
               </tr>
             </thead>
             <tbody>
-              {items.map((dev, index) => (
-                <tr
-                  key={dev.user_id}
-                  onClick={() => openUserDialog(dev)}
-                  className={cn(
-                    "cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/60",
-                    index < 3 && "bg-secondary/20",
-                  )}
-                >
+              {items.map((dev, index) => {
+                const handleKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    openUserDialog(dev)
+                  }
+                }
+                return (
+                  <tr
+                    key={dev.user_id}
+                    onClick={() => openUserDialog(dev)}
+                    onKeyDown={handleKeyDown}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`查看 ${dev.name} 的提交明细`}
+                    className={cn(
+                      "cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/60 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset",
+                      index < 3 && "bg-secondary/20",
+                    )}
+                  >
                   <td className="px-6 py-4">
                     <div className="flex w-8 items-center justify-center">
                       {getRankIcon(dev.rank)}
@@ -271,6 +285,13 @@ export function Leaderboard({
                       </span>
                     </div>
                   </td>
+                  {isAllDepartmentsView && (
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-muted-foreground">
+                        {dev.department_name ?? "未分配"}
+                      </span>
+                    </td>
+                  )}
                   <td className="px-6 py-4 text-right">
                     <span className="font-mono text-sm text-card-foreground">
                       {dev.added_per_workday.toLocaleString(undefined, {
@@ -301,7 +322,8 @@ export function Leaderboard({
                     </span>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         )}

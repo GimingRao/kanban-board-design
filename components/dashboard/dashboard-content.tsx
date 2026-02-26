@@ -17,6 +17,12 @@ import { Leaderboard } from "./leaderboard"
 import { MonthlyStatsChart } from "./monthly-stats-chart"
 import { RepoSelector, type RepoOption } from "./repo-selector"
 
+export interface DashboardContentProps {
+  // Props kept for API compatibility
+  viewType?: string
+  onViewTypeChange?: (viewType: string) => void
+}
+
 function getCurrentMonth(): string {
   const d = new Date()
   const y = d.getFullYear()
@@ -46,7 +52,7 @@ function shiftMonth(value: string, delta: number): string {
   return `${y}-${m}`
 }
 
-export function DashboardContent() {
+export function DashboardContent({}: DashboardContentProps = {}) {
   const [repos, setRepos] = useState<RepoDto[]>([])
   const [selectedRepo, setSelectedRepo] = useState("")
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
@@ -224,14 +230,16 @@ export function DashboardContent() {
     <div className="flex h-full flex-col">
       <div className="flex flex-col gap-3 border-b border-border bg-background px-6 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-foreground">
-            Git 提交指标
-          </h1>
-          <p className="mt-1 max-w-full truncate text-sm text-muted-foreground">
-            {selectedRepo === "-1"
-              ? "所有仓库的实时统计"
-              : `${selectedRepoLabel} 的实时统计`}
-          </p>
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">
+              Git 提交指标
+            </h1>
+            <p className="mt-1 max-w-full truncate text-sm text-muted-foreground">
+              {selectedRepo === "-1"
+                ? "所有仓库的实时统计"
+                : `${selectedRepoLabel} 的实时统计`}
+            </p>
+          </div>
         </div>
 
         <div className="flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
@@ -297,4 +305,3 @@ export function DashboardContent() {
     </div>
   )
 }
-

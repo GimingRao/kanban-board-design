@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef, useCallback } from "react"
 import { cn } from "@/lib/utils"
 import {
   fetchDepartmentsTree,
@@ -23,6 +23,18 @@ function buildTree(nodes: DepartmentNodeDto[]) {
     childrenMap.set(node.parent_id, siblings)
   })
   return childrenMap
+}
+
+// 计算菜单位置，确保不超出视口
+function calculateMenuPosition(x: number, y: number): { left: number; top: number } {
+  const menuWidth = 120
+  const menuHeight = 80
+  const padding = 8
+
+  const left = Math.min(x, window.innerWidth - menuWidth - padding)
+  const top = Math.min(y, window.innerHeight - menuHeight - padding)
+
+  return { left: Math.max(padding, left), top: Math.max(padding, top) }
 }
 
 function DepartmentTree({
@@ -49,16 +61,17 @@ function DepartmentTree({
   const handleContextMenu = (e: React.MouseEvent, dept: DepartmentNodeDto) => {
     e.preventDefault()
     e.stopPropagation()
-    setContextMenu({ x: e.clientX, y: e.clientY, dept })
+    const position = calculateMenuPosition(e.clientX, e.clientY)
+    setContextMenu({ x: position.left, y: position.top, dept })
   }
 
-  const handleCloseMenu = () => setContextMenu(null)
+  const handleCloseMenu = useCallback(() => setContextMenu(null), [])
 
   useEffect(() => {
     const handleClick = () => handleCloseMenu()
-    window.addEventListener("click", handleClick)
-    return () => window.removeEventListener("click", handleClick)
-  }, [])
+    window.addEventListener("click", handleClick, { capture: true })
+    return () => window.removeEventListener("click", handleClick, { capture: true } as any)
+  }, [handleCloseMenu])
 
   const renderBranch = (parentId: number | null, depth: number) => {
     const children = tree.get(parentId)
@@ -92,6 +105,8 @@ function DepartmentTree({
       {renderBranch(null, 0)}
       {contextMenu && (
         <div
+          role="menu"
+          aria-label="部门操作菜单"
           className="fixed z-50 min-w-[120px] rounded-lg border border-border bg-popover p-1 shadow-md"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
@@ -102,6 +117,7 @@ function DepartmentTree({
               handleCloseMenu()
             }}
             className="w-full rounded px-3 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+            role="menuitem"
           >
             添加子部门
           </button>
@@ -112,6 +128,7 @@ function DepartmentTree({
               handleCloseMenu()
             }}
             className="w-full rounded px-3 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
+            role="menuitem"
           >
             删除部门
           </button>
@@ -136,9 +153,11 @@ function UserCard({
         <div className="flex items-center gap-3">
           <input
             type="checkbox"
+            id={`user-select-${user.id}`}
             checked={selected}
             onChange={() => onSelect(user.id)}
             className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring focus:ring-offset-0"
+            aria-label={`选择 ${user.name}`}
           />
           <div>
             <p className="text-sm font-semibold text-foreground">{user.name}</p>
@@ -166,22 +185,56 @@ function AddDepartmentDialog({
   parentName?: string
 }) {
   const [name, setName] = useState("")
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    // 聚焦到输入框
+    inputRef.current?.focus()
+
+    // ESC 键关闭
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isOpen, onClose])
+
+  // 点击遮罩关闭
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose()
+    }
+  }
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg">
-        <h3 className="text-lg font-semibold text-foreground">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dialog-title"
+    >
+      <div
+        ref={dialogRef}
+        className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg"
+      >
+        <h3 id="dialog-title" className="text-lg font-semibold text-foreground">
           {parentName ? `添加子部门到 "${parentName}"` : "添加根部门"}
         </h3>
         <input
+          ref={inputRef}
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="请输入部门名称"
           className="mt-4 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          autoFocus
           onKeyDown={(e) => {
             if (e.key === "Enter" && name.trim()) {
               onConfirm(name.trim())
@@ -221,12 +274,43 @@ function DeleteConfirmDialog({
   onConfirm: () => void
   deptName: string
 }) {
+  const confirmButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    // 聚焦到确认按钮
+    confirmButtonRef.current?.focus()
+
+    // ESC 键关闭
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isOpen, onClose])
+
+  // 点击遮罩关闭
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose()
+    }
+  }
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-dialog-title"
+    >
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg">
-        <h3 className="text-lg font-semibold text-foreground">确认删除</h3>
+        <h3 id="delete-dialog-title" className="text-lg font-semibold text-foreground">确认删除</h3>
         <p className="mt-2 text-sm text-muted-foreground">
           确定要删除部门 "{deptName}" 吗？
         </p>
@@ -242,6 +326,7 @@ function DeleteConfirmDialog({
             取消
           </button>
           <button
+            ref={confirmButtonRef}
             type="button"
             onClick={onConfirm}
             className="rounded-md bg-destructive px-4 py-2 text-sm text-destructive-foreground hover:bg-destructive/90"
@@ -266,8 +351,29 @@ function BatchAssignDepartmentDialog({
   departments: DepartmentNodeDto[]
 }) {
   const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   const tree = useMemo(() => buildTree(departments), [departments])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    // ESC 键关闭
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isOpen, onClose])
+
+  // 点击遮罩关闭
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose()
+    }
+  }
 
   if (!isOpen) return null
 
@@ -298,9 +404,16 @@ function BatchAssignDepartmentDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div
+      ref={dialogRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="batch-dialog-title"
+    >
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg">
-        <h3 className="text-lg font-semibold text-foreground">批量分配部门</h3>
+        <h3 id="batch-dialog-title" className="text-lg font-semibold text-foreground">批量分配部门</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           为选中的用户选择部门
         </p>
@@ -369,44 +482,66 @@ export function DepartmentsUsers() {
 
   // 加载部门树和未分配部门的用户
   useEffect(() => {
+    const abortController = new AbortController()
+
     async function loadData() {
       try {
         setLoading(true)
         setError(null)
         const [deptTree, unassignedData] = await Promise.all([
-          fetchDepartmentsTree(),
-          fetchDepartmentUsers(UNASSIGNED_DEPT_ID),
+          fetchDepartmentsTree(abortController.signal),
+          fetchDepartmentUsers(UNASSIGNED_DEPT_ID, abortController.signal),
         ])
-        setDepartments(deptTree)
-        setUnassignedUsers(unassignedData ?? [])
+        if (!abortController.signal.aborted) {
+          setDepartments(deptTree)
+          setUnassignedUsers(unassignedData ?? [])
 
-        // 默认选中第一个部门
-        if (deptTree.length > 0 && selectedDeptId === null) {
-          setSelectedDeptId(deptTree[0].id)
-          setShowUnassigned(false)
+          // 默认选中第一个部门
+          if (deptTree.length > 0 && selectedDeptId === null) {
+            setSelectedDeptId(deptTree[0].id)
+            setShowUnassigned(false)
+          }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "加载失败")
+        if (!abortController.signal.aborted) {
+          setError(err instanceof Error ? err.message : "加载失败")
+        }
       } finally {
-        setLoading(false)
+        if (!abortController.signal.aborted) {
+          setLoading(false)
+        }
       }
     }
     loadData()
+
+    return () => {
+      abortController.abort()
+    }
   }, [])
 
   // 当选中部门改变时，加载该部门的用户
   useEffect(() => {
     if (selectedDeptId === null) return
 
+    const abortController = new AbortController()
+
     async function loadDeptUsers() {
       try {
-        const data = await fetchDepartmentUsers(selectedDeptId!)
-        setDeptUsers(data ?? [])
+        const data = await fetchDepartmentUsers(selectedDeptId!, abortController.signal)
+        if (!abortController.signal.aborted) {
+          setDeptUsers(data ?? [])
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "加载失败")
+        if (!abortController.signal.aborted) {
+          setError(err instanceof Error ? err.message : "加载失败")
+        }
       }
     }
     loadDeptUsers()
+
+    return () => {
+      abortController.abort()
+    }
   }, [selectedDeptId])
 
   const handleAddDepartment = async (name: string) => {
