@@ -8,8 +8,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'DevMetrics - 开发者数据看板',
-  description: '团队代码提交统计与开发者绩效分析平台',
+  title: 'DevMetrics - 开发指标看板',
+  description: '查看 Git 提交指标、AI 代码占比、用户与部门管理等开发数据看板',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -36,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="zh-CN" suppressHydrationWarning>
       <body className={`font-sans antialiased`}>
         {children}
         <Analytics />

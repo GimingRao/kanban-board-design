@@ -2,11 +2,12 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
   "http://localhost:8000"
 
-async function getJson<T>(path: string): Promise<T> {
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "GET",
     headers: { Accept: "application/json" },
     cache: "no-store",
+    signal,
   })
 
   if (!res.ok) {
@@ -17,7 +18,7 @@ async function getJson<T>(path: string): Promise<T> {
   return (await res.json()) as T
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
     headers: {
@@ -25,6 +26,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
       Accept: "application/json",
     },
     body: JSON.stringify(body),
+    signal,
   })
 
   if (!res.ok) {
@@ -35,10 +37,11 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T
 }
 
-async function deleteJson<T>(path: string): Promise<T> {
+async function deleteJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "DELETE",
     headers: { Accept: "application/json" },
+    signal,
   })
 
   if (!res.ok) {
@@ -49,7 +52,7 @@ async function deleteJson<T>(path: string): Promise<T> {
   return (await res.json()) as T
 }
 
-async function patchJson<T>(path: string, body: unknown): Promise<T> {
+async function patchJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "PATCH",
     headers: {
@@ -57,6 +60,7 @@ async function patchJson<T>(path: string, body: unknown): Promise<T> {
       Accept: "application/json",
     },
     body: JSON.stringify(body),
+    signal,
   })
 
   if (!res.ok) {
@@ -113,6 +117,8 @@ export interface LeaderboardItemDto {
   workdays: number
   added_per_workday: number
   removed_per_workday: number
+  department_id?: number | null
+  department_name?: string | null
 }
 
 export interface LeaderboardDto {
@@ -183,15 +189,18 @@ export function fetchLeaderboard(
     sort?: "net" | "added" | "commits" | "per_workday"
     year?: number
     month?: number
+    department_id?: number | null
   },
 ): Promise<LeaderboardDto> {
   const months = options?.months ?? 1
   const limit = options?.limit ?? 20
   const sort = options?.sort ?? "per_workday"
+  const departmentId = options?.department_id
+  const departmentQuery = departmentId !== undefined ? `&department_id=${departmentId}` : ""
   return getJson<LeaderboardDto>(
     `/repos/${repoId}/leaderboard?period=month&months=${months}&limit=${limit}&sort=${sort}${monthAnchorQuery(
       options,
-    )}`,
+    )}${departmentQuery}`,
   )
 }
 
@@ -209,11 +218,13 @@ export function fetchUserCommits(
   repoId: number,
   userId: number,
   options: { year: number; month: number; page?: number; pageSize?: number },
+  signal?: AbortSignal,
 ): Promise<UserCommitsDto> {
   const page = options.page ?? 1
   const pageSize = options.pageSize ?? 10
   return getJson<UserCommitsDto>(
     `/repos/${repoId}/users/${userId}/commits?year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}`,
+    signal,
   )
 }
 
@@ -223,6 +234,7 @@ export interface DepartmentNodeDto {
   id: number
   name: string
   parent_id: number | null
+  path: string
 }
 
 export interface DepartmentUserDto {
@@ -238,72 +250,273 @@ export interface DepartmentUsersDto {
   users: DepartmentUserDto[]
 }
 
-export function fetchDepartmentsTree(): Promise<DepartmentNodeDto[]> {
-  return getJson<DepartmentNodeDto[]>("/departments/tree")
+export function fetchDepartmentsTree(signal?: AbortSignal): Promise<DepartmentNodeDto[]> {
+  return getJson<DepartmentNodeDto[]>("/departments/tree", signal)
 }
 
 export function fetchDepartmentUsers(
   departmentId: number,
+  signal?: AbortSignal,
 ): Promise<DepartmentUserDto[]> {
-  return getJson<DepartmentUserDto[]>(`/departments/${departmentId}/users`)
+  return getJson<DepartmentUserDto[]>(`/departments/${departmentId}/users`, signal)
 }
 
-export interface CreateDepartmentDto {
-  name: string
-  parent_id?: number | null
-}
-
-export interface DeleteDepartmentResponseDto {
-  deleted: boolean
-  id: number
-}
-
+// Create a new department
 export function createDepartment(
-  data: CreateDepartmentDto,
+  data: { name: string; parent_id?: number | null },
+  signal?: AbortSignal,
 ): Promise<DepartmentNodeDto> {
-  return postJson<DepartmentNodeDto>("/departments", data)
+  return postJson<DepartmentNodeDto>("/departments", data, signal)
 }
 
+// Delete a department
 export function deleteDepartment(
   departmentId: number,
-): Promise<DeleteDepartmentResponseDto> {
-  return deleteJson<DeleteDepartmentResponseDto>(`/departments/${departmentId}`)
+  signal?: AbortSignal,
+): Promise<{ success: boolean }> {
+  return deleteJson<{ success: boolean }>(`/departments/${departmentId}`, signal)
 }
 
-export interface UpdateUserDto {
-  name?: string
-  email?: string
-  department_id?: number | null
-}
-
-export interface UpdatedUserDto {
-  id: number
-  repo_id: number
-  gitlab_user_id: number
-  username: string
-  name: string
-  email: string
-  department_id: number | null
-}
-
-export function updateUser(
-  userId: number,
-  data: UpdateUserDto,
-): Promise<UpdatedUserDto> {
-  return patchJson<UpdatedUserDto>(`/users/${userId}`, data)
-}
-
-export interface BatchUpdateDepartmentDto {
-  user_ids: number[]
-  department_id: number | null
-}
-
-export interface BatchUpdateDepartmentResponseDto {
-  updated: number
-}
-
+// Batch update users' department
 export function batchUpdateUsersDepartment(
-  data: BatchUpdateDepartmentDto,
-): Promise<BatchUpdateDepartmentResponseDto> {
-  return patchJson<BatchUpdateDepartmentResponseDto>("/users/department", data)
+  data: { user_ids: number[]; department_id: number | null },
+  signal?: AbortSignal,
+): Promise<{ success: boolean; updated_count: number }> {
+  return patchJson<{ success: boolean; updated_count: number }>("/users/department", data, signal)
+}
+
+// ==================== AI Ratio Leaderboard ====================
+
+export interface AIRatioLeaderboardDto {
+  view: "department" | "user"
+  period: string
+  sort: "ai_ratio" | "ai_lines" | "total_lines"
+  items: AIRatioLeaderboardItemDto[]
+}
+
+export interface AIRatioLeaderboardItemDto {
+  rank: number
+  department?: {
+    id: number
+    name: string
+    path: string
+    level: number
+  }
+  user?: {
+    id: number
+    name: string
+    username: string
+    department?: { id: number; name: string }
+  }
+  metrics: {
+    total_lines: number
+    ai_lines: number
+    human_lines: number
+    ai_ratio: number
+  }
+}
+
+export interface AICommitsDto {
+   view: "department" | "repo"
+   period: string
+   pagination: {
+     total: number
+     page: number
+     page_size: number
+     total_pages: number
+   }
+   items: AICommitItemDto[]
+ }
+
+ export interface AICommitItemDto {
+   commit: {
+     id: number
+     sha: string
+     message: string
+     committed_at: string
+   }
+   user: {
+     id: number
+     name: string
+     username: string
+     department?: { id: number; name: string }
+   }
+   repo?: {
+     id: number
+     name: string
+     web_url: string
+   }
+   stats: {
+     additions: number
+     files_changed: number
+     ai_lines: number
+     human_lines: number
+     ai_ratio: number
+   }
+ }
+
+// 获取部门排行榜
+export function fetchAIRatioDepartmentLeaderboard(
+   options: {
+     repo_id?: number
+     parent_id?: number
+     level?: number
+     sort?: "ai_ratio" | "ai_lines" | "total_lines"
+     year: number
+     month: number
+     limit?: number
+   }
+ ): Promise<AIRatioLeaderboardDto> {
+   const repoId = options.repo_id ?? -1
+   const limit = options.limit ?? 20
+   const sort = options.sort ?? "ai_ratio"
+   const levelQuery = options.level !== undefined ? `&level=${options.level}` : ""
+   const parentQuery = options.parent_id !== undefined ? `&parent_id=${options.parent_id}` : ""
+
+   return getJson<AIRatioLeaderboardDto>(
+     `/leaderboards/departments?repo_id=${repoId}&sort=${sort}&year=${options.year}&month=${options.month}&limit=${limit}${levelQuery}${parentQuery}`
+   )
+ }
+
+// 获取个人排行榜
+export function fetchAIRatioUserLeaderboard(
+   options: {
+     repo_id?: number
+     department_id?: number
+     sort?: "ai_ratio" | "ai_lines" | "total_lines"
+     year: number
+     month: number
+     limit?: number
+   }
+ ): Promise<AIRatioLeaderboardDto> {
+   const repoId = options.repo_id ?? -1
+   const limit = options.limit ?? 20
+   const sort = options.sort ?? "ai_ratio"
+   const deptQuery = options.department_id !== undefined ? `&department_id=${options.department_id}` : ""
+
+   return getJson<AIRatioLeaderboardDto>(
+     `/leaderboards/users?repo_id=${repoId}&sort=${sort}&year=${options.year}&month=${options.month}&limit=${limit}${deptQuery}`
+   )
+ }
+
+// 按部门获取提交明细
+export function fetchAICommitsByDepartment(
+   options: {
+     repo_id?: number
+     department_id: number
+     year: number
+     month: number
+     page?: number
+     page_size?: number
+   }
+ ): Promise<AICommitsDto> {
+   const repoId = options.repo_id ?? -1
+   const page = options.page ?? 1
+   const pageSize = options.page_size ?? 20
+
+   return getJson<AICommitsDto>(
+     `/commits/by-department?repo_id=${repoId}&department_id=${options.department_id}&year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}`
+   )
+ }
+
+// 按仓库获取提交明细
+export function fetchAICommitsByRepo(
+   options: {
+     repo_id: number
+     department_id?: number
+     year: number
+     month: number
+     page?: number
+     page_size?: number
+   }
+ ): Promise<AICommitsDto> {
+   const page = options.page ?? 1
+   const pageSize = options.page_size ?? 20
+   const deptQuery = options.department_id !== undefined ? `&department_id=${options.department_id}` : ""
+
+   return getJson<AICommitsDto>(
+     `/commits/by-repo?repo_id=${options.repo_id}&year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}${deptQuery}`
+   )
+ }
+
+// ==================== Metrics Trend ====================
+
+export interface DataPointMetric {
+  year: number
+  month: number
+  total_lines: number
+  ai_lines: number
+  human_lines: number
+  ai_ratio: number
+  commits_count: number
+  active_users: number
+  workdays: number
+}
+
+export interface SummaryMetrics {
+  total_lines: number
+  ai_lines: number
+  human_lines: number
+  ai_ratio: number
+  total_commits: number
+  avg_active_users: number
+}
+
+export interface RepoTrendResponse {
+  entity: {
+    type: "repo"
+    id: number
+    name: string
+  }
+  period: {
+    start: string
+    end: string
+  }
+  data_points: DataPointMetric[]
+  summary: SummaryMetrics
+}
+
+export interface DepartmentTrendResponse {
+  entity: {
+    type: "department"
+    id: number
+    name: string
+  }
+  period: {
+    start: string
+    end: string
+  }
+  data_points: DataPointMetric[]
+  summary: SummaryMetrics
+}
+
+// 获取仓库趋势数据
+export function fetchRepoTrend(
+  options: {
+    repo_id?: number
+    start_year: number
+    start_month: number
+    end_year: number
+    end_month: number
+  }
+): Promise<RepoTrendResponse> {
+  const repoId = options.repo_id ?? -1
+  return getJson<RepoTrendResponse>(
+    `/metrics/repos/trend?repo_id=${repoId}&start_year=${options.start_year}&start_month=${options.start_month}&end_year=${options.end_year}&end_month=${options.end_month}`
+  )
+}
+
+// 获取部门趋势数据
+export function fetchDepartmentTrend(
+  options: {
+    department_id: number
+    start_year: number
+    start_month: number
+    end_year: number
+    end_month: number
+  }
+): Promise<DepartmentTrendResponse> {
+  return getJson<DepartmentTrendResponse>(
+    `/metrics/departments/trend?department_id=${options.department_id}&start_year=${options.start_year}&start_month=${options.start_month}&end_year=${options.end_year}&end_month=${options.end_month}`
+  )
 }
