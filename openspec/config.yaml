@@ -1,13 +1,28 @@
 schema: spec-driven
 
-# Project context (optional)
+# Project context
 # This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Project: DevMetrics - 开发者数据看板
+  Purpose: 团队代码提交统计与开发者绩效分析平台
+
+  Tech Stack:
+  - Frontend: Next.js 16, React 19, TypeScript
+  - UI: shadcn/ui, Tailwind CSS, Radix UI
+  - Charts: Recharts
+  - Backend: Python API (独立服务)
+
+  API:
+  - Base URL: NEXT_PUBLIC_API_BASE_URL (default: http://localhost:8000)
+  - All requests: cache: no-store
+  - Response format: JSON
+
+  Conventions:
+  - 组件使用 "use client" 指令
+  - API 类型定义在 lib/api.ts
+  - 所有错误需要友好提示给用户
+  - 日期格式: YYYY-MM
+  - 特殊 ID: repo_id = -1 (所有仓库), department_id = -1 (未分配部门)
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
