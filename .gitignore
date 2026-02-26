@@ -25,3 +25,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# OpenSpec Change
+openspec/changes
+
+# Playwright MCP
+.playwright-mcp/
+
+# Temporary files
+nul
