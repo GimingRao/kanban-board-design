@@ -268,11 +268,15 @@ export function SkillFormDialog({
                     <SelectValue placeholder="选择分类" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id.toString()}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
+                    {categories.map((category, index) => {
+                      const categoryId = typeof category.id === "number" ? category.id : undefined
+                      if (categoryId === undefined) return null
+                      return (
+                        <SelectItem key={`${categoryId}-${category.name}-${index}`} value={categoryId.toString()}>
+                          {category.name}
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
               </div>

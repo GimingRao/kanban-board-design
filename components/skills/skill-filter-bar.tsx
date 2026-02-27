@@ -138,19 +138,23 @@ export function SkillFilterBar({
             >
               全部分类
             </Badge>
-            {categories.map((category) => (
-              <Badge
-                key={category.id}
-                variant={selectedCategory === category.id ? "default" : "outline"}
-                className={cn(
-                  "cursor-pointer transition-colors whitespace-nowrap",
-                  selectedCategory === category.id ? "bg-accent text-accent-foreground" : "hover:bg-secondary"
-                )}
-                onClick={() => onCategoryChange(category.id)}
-              >
-                {category.name}
-              </Badge>
-            ))}
+            {categories.map((category, index) => {
+              const categoryId = typeof category.id === "number" ? category.id : undefined
+              if (categoryId === undefined) return null
+              return (
+                <Badge
+                  key={`${categoryId}-${category.name}-${index}`}
+                  variant={selectedCategory === categoryId ? "default" : "outline"}
+                  className={cn(
+                    "cursor-pointer transition-colors whitespace-nowrap",
+                    selectedCategory === categoryId ? "bg-accent text-accent-foreground" : "hover:bg-secondary"
+                  )}
+                  onClick={() => onCategoryChange(categoryId)}
+                >
+                  {category.name}
+                </Badge>
+              )
+            })}
           </div>
         </div>
       )}

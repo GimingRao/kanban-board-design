@@ -378,12 +378,13 @@ export function McpCatalog() {
 }
 
 // 格式化数字
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M"
+function formatNumber(num?: number | null): string {
+  const value = typeof num === "number" && Number.isFinite(num) ? num : 0
+  if (value >= 1000000) {
+    return (value / 1000000).toFixed(1) + "M"
   }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "K"
+  if (value >= 1000) {
+    return (value / 1000).toFixed(1) + "K"
   }
-  return num.toString()
+  return value.toString()
 }
