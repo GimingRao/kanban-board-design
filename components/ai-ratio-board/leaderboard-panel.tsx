@@ -124,7 +124,6 @@ export function LeaderboardPanel({
             <DepartmentLevelSelector
               value={departmentLevel}
               onChange={setDepartmentLevel}
-              disabled={loading}
             />
           </div>
         )}

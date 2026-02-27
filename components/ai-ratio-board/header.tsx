@@ -79,7 +79,7 @@ export function AiRatioBoardHeader({
 
       <div className="mt-4 flex items-center justify-end gap-2">
         <span className="text-sm text-muted-foreground">月份:</span>
-        <Select value={selectedMonth} onValueChange={onMonthChange} disabled={loading}>
+        <Select value={selectedMonth} onValueChange={onMonthChange}>
           <SelectTrigger className="w-[180px] bg-secondary/40">
             <SelectValue placeholder="选择月份" />
           </SelectTrigger>

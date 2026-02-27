@@ -14,9 +14,10 @@ import {
 import { SkillCard } from "./skill-card"
 import { SkillFilterBar } from "./skill-filter-bar"
 import { SkillDetailDialog } from "./skill-detail-dialog"
+import { SkillFormDialog } from "./skill-form-dialog"
 import { getSkillsList, getSkillCategories } from "@/lib/api/skills"
 import type { Skill, SkillCategory } from "@/lib/types/skill"
-import { Package, Loader2 } from "lucide-react"
+import { Package } from "lucide-react"
 import { toast } from "sonner"
 
 export function SkillsManagement() {
@@ -29,32 +30,33 @@ export function SkillsManagement() {
   const [sortBy, setSortBy] = useState("download_count")
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [formOpen, setFormOpen] = useState(false)
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const [skillsResult, categoriesResult] = await Promise.all([
+        getSkillsList({ sort_by: sortBy as any, sort_order: 'desc' }),
+        getSkillCategories(),
+      ])
+
+      if (skillsResult.success && skillsResult.data) {
+        setSkills(skillsResult.data.items || [])
+      }
+      if (categoriesResult.success && categoriesResult.data) {
+        setCategories(categoriesResult.data)
+      }
+    } catch (error) {
+      toast.error("加载技能列表失败", {
+        description: error instanceof Error ? error.message : "未知错误",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // 加载数据
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true)
-      try {
-        const [skillsResult, categoriesResult] = await Promise.all([
-          getSkillsList({ sort_by: sortBy as any, sort_order: 'desc' }),
-          getSkillCategories(),
-        ])
-
-        if (skillsResult.success && skillsResult.data) {
-          setSkills(skillsResult.data.items || [])
-        }
-        if (categoriesResult.success && categoriesResult.data) {
-          setCategories(categoriesResult.data)
-        }
-      } catch (error) {
-        toast.error("加载技能列表失败", {
-          description: error instanceof Error ? error.message : "未知错误",
-        })
-      } finally {
-        setLoading(false)
-      }
-    }
-
     loadData()
   }, [sortBy])
 
@@ -90,8 +92,18 @@ export function SkillsManagement() {
     setDetailOpen(true)
   }
 
-  const handleFavorite = (skillId: number) => {
+  const handleFavorite = (_skillId: number) => {
     toast.success("已添加到收藏")
+  }
+
+  const handleCreate = () => {
+    setFormOpen(true)
+  }
+
+  const handleFormSuccess = () => {
+    setFormOpen(false)
+    loadData()
+    toast.success("技能创建成功")
   }
 
   if (loading) {
@@ -122,7 +134,7 @@ export function SkillsManagement() {
             浏览、搜索和管理可复用的 AI 技能模块
           </p>
         </div>
-        <Button>
+        <Button onClick={handleCreate}>
           <Package className="h-4 w-4 mr-2" />
           添加技能
         </Button>
@@ -183,7 +195,7 @@ export function SkillsManagement() {
                 清除筛选
               </Button>
             ) : (
-              <Button>
+              <Button onClick={handleCreate}>
                 <Package className="h-4 w-4 mr-2" />
                 添加技能
               </Button>
@@ -198,6 +210,14 @@ export function SkillsManagement() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onFavorite={handleFavorite}
+      />
+
+      <SkillFormDialog
+        skill={null}
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        onSuccess={handleFormSuccess}
+        categories={categories}
       />
     </div>
   )

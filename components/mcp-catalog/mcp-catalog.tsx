@@ -14,11 +14,21 @@ import {
 import { McpCatalogCard } from "./mcp-catalog-card"
 import { McpCatalogFilterBar } from "./mcp-catalog-filter-bar"
 import { McpCatalogDetailDialog } from "./mcp-catalog-detail-dialog"
-import { getMcpCatalog } from "@/lib/api/mcp"
+import { getMcpCatalog, createMcpCatalog } from "@/lib/api/mcp"
 import type { McpCatalog, McpCatalogCategory } from "@/lib/types/mcp"
-import { Package, Loader2, Sparkles, Flame, Trophy } from "lucide-react"
+import { Package, Sparkles, Flame, Trophy, Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 export function McpCatalog() {
   const [mcps, setMcps] = useState<McpCatalog[]>([])
@@ -30,29 +40,37 @@ export function McpCatalog() {
   const [selectedMcp, setSelectedMcp] = useState<McpCatalog | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<"all" | "official" | "featured" | "hot">("all")
+  const [submitOpen, setSubmitOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({
+    code: "",
+    name: "",
+    version: "1.0.0",
+    description: "",
+  })
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const result = await getMcpCatalog({
+        sort_by: sortBy as any,
+        sort_order: 'desc',
+      })
+
+      if (result.success && result.data) {
+        setMcps(result.data.items || [])
+      }
+    } catch (error) {
+      toast.error("加载 MCP 目录失败", {
+        description: error instanceof Error ? error.message : "未知错误",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // 加载数据
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true)
-      try {
-        const result = await getMcpCatalog({
-          sort_by: sortBy as any,
-          sort_order: 'desc',
-        })
-
-        if (result.success && result.data) {
-          setMcps(result.data.items || [])
-        }
-      } catch (error) {
-        toast.error("加载 MCP 目录失败", {
-          description: error instanceof Error ? error.message : "未知错误",
-        })
-      } finally {
-        setLoading(false)
-      }
-    }
-
     loadData()
   }, [sortBy])
 
@@ -99,8 +117,44 @@ export function McpCatalog() {
     setDetailOpen(true)
   }
 
-  const handleFavorite = (mcpId: number) => {
+  const handleFavorite = (_mcpId: number) => {
     toast.success("已添加到收藏")
+  }
+
+  const handleSubmitMcp = async () => {
+    if (!form.code.trim() || !form.name.trim()) {
+      toast.error("请填写必填项", {
+        description: "编码和名称不能为空",
+      })
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const result = await createMcpCatalog({
+        code: form.code.trim(),
+        name: form.name.trim(),
+        version: form.version.trim() || "1.0.0",
+        description: form.description.trim() || undefined,
+      })
+
+      if (result.success) {
+        toast.success("MCP 提交成功")
+        setSubmitOpen(false)
+        setForm({ code: "", name: "", version: "1.0.0", description: "" })
+        await loadData()
+      } else if (result.error) {
+        toast.error("MCP 提交失败", {
+          description: result.error.message,
+        })
+      }
+    } catch (error) {
+      toast.error("MCP 提交失败", {
+        description: error instanceof Error ? error.message : "未知错误",
+      })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   if (loading) {
@@ -131,7 +185,7 @@ export function McpCatalog() {
             浏览和发现 Model Context Protocol 工具
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setSubmitOpen(true)}>
           <Package className="h-4 w-4 mr-2" />
           提交 MCP
         </Button>
@@ -242,7 +296,7 @@ export function McpCatalog() {
                 清除筛选
               </Button>
             ) : (
-              <Button>
+              <Button onClick={() => setSubmitOpen(true)}>
                 <Package className="h-4 w-4 mr-2" />
                 提交 MCP
               </Button>
@@ -258,6 +312,67 @@ export function McpCatalog() {
         onOpenChange={setDetailOpen}
         onFavorite={handleFavorite}
       />
+
+      <Dialog open={submitOpen} onOpenChange={setSubmitOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>提交 MCP</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="mcp-code">编码</Label>
+              <Input
+                id="mcp-code"
+                placeholder="例如：my-mcp-tool"
+                value={form.code}
+                onChange={(e) => setForm((prev) => ({ ...prev, code: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mcp-name">名称</Label>
+              <Input
+                id="mcp-name"
+                placeholder="例如：My MCP Tool"
+                value={form.name}
+                onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mcp-version">版本</Label>
+              <Input
+                id="mcp-version"
+                placeholder="例如：1.0.0"
+                value={form.version}
+                onChange={(e) => setForm((prev) => ({ ...prev, version: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mcp-desc">描述</Label>
+              <Textarea
+                id="mcp-desc"
+                placeholder="描述这个 MCP 的用途"
+                value={form.description}
+                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                rows={4}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubmitOpen(false)} disabled={submitting}>
+              取消
+            </Button>
+            <Button onClick={handleSubmitMcp} disabled={submitting}>
+              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              提交
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

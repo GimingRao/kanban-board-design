@@ -4,6 +4,12 @@ import { useState, useEffect } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -14,6 +20,7 @@ import {
 import { McpCard } from "./mcp-card"
 import { McpFilterBar } from "./mcp-filter-bar"
 import { McpDetailDialog } from "./mcp-detail-dialog"
+import { ServiceForm } from "./service-form"
 import { getMcpServices } from "@/lib/api/mcp"
 import type { McpService, McpServiceType } from "@/lib/types/mcp"
 import { Server, Plus } from "lucide-react"
@@ -29,38 +36,40 @@ export function McpManagement() {
   const [sortBy, setSortBy] = useState("name")
   const [selectedService, setSelectedService] = useState<McpService | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingService, setEditingService] = useState<McpService | null>(null)
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const params: any = { page: 1, page_size: 100 }
+      if (selectedType !== "all") {
+        params.service_type = selectedType
+      }
+      if (enabledOnly) {
+        params.enabled_only = true
+      }
+
+      const result = await getMcpServices(params)
+
+      if (result.success && result.data) {
+        setServices(result.data.items || [])
+      } else if (result.error) {
+        toast.error("加载 MCP 服务列表失败", {
+          description: result.error.message,
+        })
+      }
+    } catch (error) {
+      toast.error("加载 MCP 服务列表失败", {
+        description: error instanceof Error ? error.message : "未知错误",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // 加载数据
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true)
-      try {
-        const params: any = { page: 1, page_size: 100 }
-        if (selectedType !== "all") {
-          params.service_type = selectedType
-        }
-        if (enabledOnly) {
-          params.enabled_only = true
-        }
-
-        const result = await getMcpServices(params)
-
-        if (result.success && result.data) {
-          setServices(result.data.items || [])
-        } else if (result.error) {
-          toast.error("加载 MCP 服务列表失败", {
-            description: result.error.message,
-          })
-        }
-      } catch (error) {
-        toast.error("加载 MCP 服务列表失败", {
-          description: error instanceof Error ? error.message : "未知错误",
-        })
-      } finally {
-        setLoading(false)
-      }
-    }
-
     loadData()
   }, [selectedType, enabledOnly])
 
@@ -104,8 +113,20 @@ export function McpManagement() {
     setDetailOpen(true)
   }
 
-  const handleFavorite = (serviceId: number) => {
+  const handleFavorite = (_serviceId: number) => {
     toast.success("已添加到收藏")
+  }
+
+  const handleCreate = () => {
+    setEditingService(null)
+    setFormOpen(true)
+  }
+
+  const handleFormSuccess = () => {
+    setFormOpen(false)
+    setEditingService(null)
+    loadData()
+    toast.success("MCP 服务创建成功")
   }
 
   if (loading) {
@@ -138,7 +159,7 @@ export function McpManagement() {
             浏览、搜索和管理 Model Context Protocol 服务器
           </p>
         </div>
-        <Button>
+        <Button onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-2" />
           添加服务
         </Button>
@@ -204,7 +225,7 @@ export function McpManagement() {
                 清除筛选
               </Button>
             ) : (
-              <Button>
+              <Button onClick={handleCreate}>
                 <Plus className="h-4 w-4 mr-2" />
                 添加服务
               </Button>
@@ -220,6 +241,21 @@ export function McpManagement() {
         onOpenChange={setDetailOpen}
         onFavorite={handleFavorite}
       />
+
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingService ? "编辑 MCP 服务" : "添加 MCP 服务"}
+            </DialogTitle>
+          </DialogHeader>
+          <ServiceForm
+            service={editingService}
+            onSuccess={handleFormSuccess}
+            onCancel={() => setFormOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

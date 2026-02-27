@@ -39,7 +39,8 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       <body className={`font-sans antialiased`}>
         {children}
-        <Analytics />
+        {/* Vercel Analytics only enabled explicitly */}
+        {process.env.NEXT_PUBLIC_ENABLE_VERCEL_ANALYTICS === "true" && <Analytics />}
       </body>
     </html>
   )
