@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { ServiceList } from "@/components/mcp/service-list"
 import { ServiceForm } from "@/components/mcp/service-form"
@@ -11,7 +11,7 @@ import { toast } from "sonner"
 import { getMcpServices } from "@/lib/api/mcp"
 import type { McpService, McpServiceType } from "@/lib/types/mcp"
 
-export default function McpPage() {
+function McpPageContent() {
   const searchParams = useSearchParams()
   const [services, setServices] = useState<McpService[]>([])
   const [loading, setLoading] = useState(true)
@@ -144,5 +144,13 @@ export default function McpPage() {
         total={total}
       />
     </div>
+  )
+}
+
+export default function McpPage() {
+  return (
+    <Suspense fallback={<div className="container mx-auto p-6">Loading...</div>}>
+      <McpPageContent />
+    </Suspense>
   )
 }
