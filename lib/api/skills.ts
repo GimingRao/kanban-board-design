@@ -34,7 +34,13 @@ export async function getSkillDetail(id: number): Promise<ApiResponse<Skill>> {
  * 创建技能
  */
 export async function createSkill(data: SkillFormData): Promise<ApiResponse<Skill>> {
-  return post<Skill>(`${API_PREFIX}`, data)
+  const payload = {
+    name: data.name,
+    slug: data.code,
+    description: data.description,
+    category: data.category_id !== undefined ? String(data.category_id) : undefined,
+  }
+  return post<Skill>(`${API_PREFIX}`, payload)
 }
 
 /**
@@ -44,7 +50,13 @@ export async function updateSkill(
   id: number,
   data: Partial<SkillFormData>
 ): Promise<ApiResponse<Skill>> {
-  return patch<Skill>(`${API_PREFIX}/${id}`, data)
+  const payload = {
+    name: data.name,
+    slug: data.code,
+    description: data.description,
+    category: data.category_id !== undefined ? String(data.category_id) : undefined,
+  }
+  return patch<Skill>(`${API_PREFIX}/${id}`, payload)
 }
 
 /**
