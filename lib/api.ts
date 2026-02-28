@@ -439,6 +439,26 @@ export function fetchAICommitsByRepo(
    )
  }
 
+// 按用户获取提交明细
+export function fetchAICommitsByUser(
+  options: {
+    repo_id?: number
+    user_id: number
+    year: number
+    month: number
+    page?: number
+    page_size?: number
+  }
+): Promise<AICommitsDto> {
+  const repoId = options.repo_id ?? -1
+  const page = options.page ?? 1
+  const pageSize = options.page_size ?? 20
+
+  return getJson<AICommitsDto>(
+    `/commits/by-user?repo_id=${repoId}&user_id=${options.user_id}&year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}`
+  )
+}
+
 // ==================== Metrics Trend ====================
 
 export interface DataPointMetric {

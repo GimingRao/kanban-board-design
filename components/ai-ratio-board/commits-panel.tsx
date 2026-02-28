@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { fetchAICommitsByDepartment, fetchAICommitsByRepo, type AICommitsDto, type AICommitItemDto } from "@/lib/api"
+import { fetchAICommitsByDepartment, fetchAICommitsByRepo, fetchAICommitsByUser, type AICommitsDto, type AICommitItemDto } from "@/lib/api"
 import type { SelectedItem } from "./leaderboard-panel"
 import { Button } from "@/components/ui/button"
 
@@ -52,21 +52,33 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
     setError(null)
     setPage(1)
 
-    const fetchData = selectedItem.type === "department"
-      ? () => fetchAICommitsByDepartment({
-          department_id: selectedItem.id,
-          year: parsed.year,
-          month: parsed.month,
-          page: 1,
-          page_size: 20,
-        })
-      : () => fetchAICommitsByRepo({
-          repo_id: selectedItem.id,
-          year: parsed.year,
-          month: parsed.month,
-          page: 1,
-          page_size: 20,
-        })
+    let fetchData: () => Promise<AICommitsDto>
+
+    if (selectedItem.type === "department") {
+      fetchData = () => fetchAICommitsByDepartment({
+        department_id: selectedItem.id,
+        year: parsed.year,
+        month: parsed.month,
+        page: 1,
+        page_size: 20,
+      })
+    } else if (selectedItem.type === "user") {
+      fetchData = () => fetchAICommitsByUser({
+        user_id: selectedItem.id,
+        year: parsed.year,
+        month: parsed.month,
+        page: 1,
+        page_size: 20,
+      })
+    } else {
+      fetchData = () => fetchAICommitsByRepo({
+        repo_id: selectedItem.id,
+        year: parsed.year,
+        month: parsed.month,
+        page: 1,
+        page_size: 20,
+      })
+    }
 
     fetchData()
       .then((result) => {
@@ -99,21 +111,33 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
     setLoading(true)
     setError(null)
 
-    const fetchData = selectedItem.type === "department"
-      ? () => fetchAICommitsByDepartment({
-          department_id: selectedItem.id,
-          year: parsed.year,
-          month: parsed.month,
-          page,
-          page_size: 20,
-        })
-      : () => fetchAICommitsByRepo({
-          repo_id: selectedItem.id,
-          year: parsed.year,
-          month: parsed.month,
-          page,
-          page_size: 20,
-        })
+    let fetchData: () => Promise<AICommitsDto>
+
+    if (selectedItem.type === "department") {
+      fetchData = () => fetchAICommitsByDepartment({
+        department_id: selectedItem.id,
+        year: parsed.year,
+        month: parsed.month,
+        page,
+        page_size: 20,
+      })
+    } else if (selectedItem.type === "user") {
+      fetchData = () => fetchAICommitsByUser({
+        user_id: selectedItem.id,
+        year: parsed.year,
+        month: parsed.month,
+        page,
+        page_size: 20,
+      })
+    } else {
+      fetchData = () => fetchAICommitsByRepo({
+        repo_id: selectedItem.id,
+        year: parsed.year,
+        month: parsed.month,
+        page,
+        page_size: 20,
+      })
+    }
 
     fetchData()
       .then((result) => {
