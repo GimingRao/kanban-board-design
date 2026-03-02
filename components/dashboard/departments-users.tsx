@@ -55,8 +55,45 @@ function DepartmentTree({
     y: number
     dept: DepartmentNodeDto
   } | null>(null)
+  const [expandedDeptIds, setExpandedDeptIds] = useState<Set<number>>(new Set())
 
   const tree = useMemo(() => buildTree(departments), [departments])
+
+  useEffect(() => {
+    const currentIds = new Set(departments.map((dept) => dept.id))
+    setExpandedDeptIds((prev) => {
+      if (prev.size === 0) {
+        return new Set(currentIds)
+      }
+
+      const next = new Set<number>()
+      prev.forEach((id) => {
+        if (currentIds.has(id)) {
+          next.add(id)
+        }
+      })
+
+      currentIds.forEach((id) => {
+        if (!prev.has(id)) {
+          next.add(id)
+        }
+      })
+
+      return next
+    })
+  }, [departments])
+
+  const toggleExpand = (deptId: number) => {
+    setExpandedDeptIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(deptId)) {
+        next.delete(deptId)
+      } else {
+        next.add(deptId)
+      }
+      return next
+    })
+  }
 
   const handleContextMenu = (e: React.MouseEvent, dept: DepartmentNodeDto) => {
     e.preventDefault()
@@ -77,27 +114,50 @@ function DepartmentTree({
     const children = tree.get(parentId)
     if (!children) return null
 
-    return children.map((dept) => (
-      <div key={dept.id} className="flex flex-col">
-        <button
-          type="button"
-          onClick={() => onSelect(dept.id)}
-          onContextMenu={(e) => handleContextMenu(e, dept)}
-          className={cn(
-            "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition",
-            depth === 0 ? "font-semibold" : "font-normal",
-            selectedId === dept.id
-              ? "bg-accent text-accent-foreground"
-              : "text-foreground hover:bg-muted"
-          )}
-          style={{ paddingLeft: 12 + depth * 16 }}
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
-          {dept.name}
-        </button>
-        {renderBranch(dept.id, depth + 1)}
-      </div>
-    ))
+    return children.map((dept) => {
+      const childNodes = tree.get(dept.id) ?? []
+      const hasChildren = childNodes.length > 0
+      const isExpanded = expandedDeptIds.has(dept.id)
+
+      return (
+        <div key={dept.id} className="flex flex-col">
+          <div
+            className={cn(
+              "flex items-center rounded-md text-sm transition",
+              depth === 0 ? "font-semibold" : "font-normal",
+              selectedId === dept.id
+                ? "bg-accent text-accent-foreground"
+                : "text-foreground hover:bg-muted"
+            )}
+            style={{ paddingLeft: 12 + depth * 16 }}
+          >
+            {hasChildren ? (
+              <button
+                type="button"
+                onClick={() => toggleExpand(dept.id)}
+                className="mr-1 inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted/70"
+                aria-label={isExpanded ? `收起 ${dept.name}` : `展开 ${dept.name}`}
+              >
+                <span className="text-xs leading-none">{isExpanded ? "▾" : "▸"}</span>
+              </button>
+            ) : (
+              <span className="mr-1 inline-flex h-6 w-6 items-center justify-center text-muted-foreground">•</span>
+            )}
+
+            <button
+              type="button"
+              onClick={() => onSelect(dept.id)}
+              onContextMenu={(e) => handleContextMenu(e, dept)}
+              className="flex-1 rounded-md px-2 py-2 text-left"
+            >
+              {dept.name}
+            </button>
+          </div>
+
+          {hasChildren && isExpanded ? renderBranch(dept.id, depth + 1) : null}
+        </div>
+      )
+    })
   }
 
   return (
