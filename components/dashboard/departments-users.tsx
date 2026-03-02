@@ -8,6 +8,7 @@ import {
   createDepartment,
   deleteDepartment,
   batchUpdateUsersDepartment,
+  updateUser,
   type DepartmentNodeDto,
   type DepartmentUserDto,
 } from "@/lib/api"
@@ -202,14 +203,16 @@ function UserCard({
   user,
   selected,
   onSelect,
+  onEdit,
 }: {
   user: DepartmentUserDto
   selected: boolean
   onSelect: (userId: number) => void
+  onEdit: (user: DepartmentUserDto) => void
 }) {
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <input
             type="checkbox"
@@ -221,14 +224,18 @@ function UserCard({
           />
           <div>
             <p className="text-sm font-semibold text-foreground">{user.name}</p>
-            <p className="text-xs text-muted-foreground">{user.title}</p>
+            <p className="text-xs text-muted-foreground">工号：{user.worker_id || "未填写"}</p>
           </div>
         </div>
-        <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
-          ID {user.id}
-        </span>
+        <button
+          type="button"
+          onClick={() => onEdit(user)}
+          className="rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-muted"
+        >
+          编辑
+        </button>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground pl-7">{user.email}</p>
+      <p className="mt-2 pl-7 text-xs text-muted-foreground">{user.email || "未填写邮箱"}</p>
     </div>
   )
 }
@@ -399,6 +406,113 @@ function DeleteConfirmDialog({
   )
 }
 
+function EditUserDialog({
+  isOpen,
+  user,
+  saving,
+  onClose,
+  onConfirm,
+}: {
+  isOpen: boolean
+  user: DepartmentUserDto | null
+  saving: boolean
+  onClose: () => void
+  onConfirm: (payload: { name: string; email: string; worker_id: string }) => void
+}) {
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [workerId, setWorkerId] = useState("")
+
+  useEffect(() => {
+    if (!isOpen || !user) return
+    setName(user.name ?? "")
+    setEmail(user.email ?? "")
+    setWorkerId(user.worker_id ?? "")
+  }, [isOpen, user])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isOpen, onClose])
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose()
+    }
+  }
+
+  if (!isOpen || !user) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-user-dialog-title"
+    >
+      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg">
+        <h3 id="edit-user-dialog-title" className="text-lg font-semibold text-foreground">
+          编辑用户
+        </h3>
+        <div className="mt-4 space-y-3">
+          <label className="block text-sm text-foreground">
+            姓名
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+          <label className="block text-sm text-foreground">
+            邮箱
+            <input
+              type="text"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+          <label className="block text-sm text-foreground">
+            工号
+            <input
+              type="text"
+              value={workerId}
+              onChange={(e) => setWorkerId(e.target.value)}
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-md px-4 py-2 text-sm text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm({ name, email, worker_id: workerId })}
+            disabled={saving}
+            className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? "保存中..." : "保存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function BatchAssignDepartmentDialog({
   isOpen,
   onClose,
@@ -526,6 +640,9 @@ export function DepartmentsUsers() {
     id: number
     name: string
   } | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<DepartmentUserDto | null>(null)
+  const [editSaving, setEditSaving] = useState(false)
 
   const reloadDepartments = async () => {
     try {
@@ -602,7 +719,7 @@ export function DepartmentsUsers() {
     return () => {
       abortController.abort()
     }
-  }, [selectedDeptId])
+  }, [selectedDeptId, showUnassigned])
 
   const handleAddDepartment = async (name: string) => {
     try {
@@ -646,6 +763,36 @@ export function DepartmentsUsers() {
   const openDeleteDialog = (id: number, name: string) => {
     setDeleteDialogDept({ id, name })
     setDeleteDialogOpen(true)
+  }
+
+  const openEditDialog = (user: DepartmentUserDto) => {
+    setEditingUser(user)
+    setEditDialogOpen(true)
+  }
+
+  const handleEditUser = async (payload: { name: string; email: string; worker_id: string }) => {
+    if (!editingUser) return
+    try {
+      setEditSaving(true)
+      await updateUser(editingUser.id, {
+        name: payload.name.trim() || null,
+        email: payload.email.trim() || null,
+        worker_id: payload.worker_id,
+      })
+
+      const [newUnassignedUsers, newDeptUsers] = await Promise.all([
+        fetchDepartmentUsers(UNASSIGNED_DEPT_ID),
+        selectedDeptId !== null ? fetchDepartmentUsers(selectedDeptId) : Promise.resolve([]),
+      ])
+      setUnassignedUsers(newUnassignedUsers ?? [])
+      setDeptUsers(newDeptUsers ?? [])
+      setEditDialogOpen(false)
+      setEditingUser(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "更新用户失败")
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   // 处理用户选择
@@ -809,6 +956,7 @@ export function DepartmentsUsers() {
                     user={user}
                     selected={selectedUserIds.has(user.id)}
                     onSelect={handleToggleUser}
+                    onEdit={openEditDialog}
                   />
                 ))}
               </div>
@@ -829,6 +977,18 @@ export function DepartmentsUsers() {
         onClose={() => setDeleteDialogOpen(false)}
         onConfirm={handleDeleteDepartment}
         deptName={deleteDialogDept?.name ?? ""}
+      />
+
+      <EditUserDialog
+        isOpen={editDialogOpen}
+        user={editingUser}
+        saving={editSaving}
+        onClose={() => {
+          if (editSaving) return
+          setEditDialogOpen(false)
+          setEditingUser(null)
+        }}
+        onConfirm={handleEditUser}
       />
 
       <BatchAssignDepartmentDialog

@@ -240,9 +240,9 @@ export interface DepartmentNodeDto {
 export interface DepartmentUserDto {
   id: number
   name: string
-  title: string
   email: string
   department_id: number | null
+  worker_id?: string | null
 }
 
 export interface DepartmentUsersDto {
@@ -281,8 +281,23 @@ export function deleteDepartment(
 export function batchUpdateUsersDepartment(
   data: { user_ids: number[]; department_id: number | null },
   signal?: AbortSignal,
-): Promise<{ success: boolean; updated_count: number }> {
-  return patchJson<{ success: boolean; updated_count: number }>("/users/department", data, signal)
+): Promise<{ updated: number }> {
+  return patchJson<{ updated: number }>("/users/department", data, signal)
+}
+
+export interface UpdateUserPayload {
+  name?: string | null
+  email?: string | null
+  worker_id?: string | null
+  department_id?: number | null
+}
+
+export function updateUser(
+  userId: number,
+  data: UpdateUserPayload,
+  signal?: AbortSignal,
+): Promise<DepartmentUserDto> {
+  return patchJson<DepartmentUserDto>(`/users/${userId}`, data, signal)
 }
 
 // ==================== AI Ratio Leaderboard ====================
