@@ -646,8 +646,8 @@ export function DepartmentsUsers() {
   return (
     <>
       <div className="flex h-full gap-6 overflow-hidden p-6">
-        <section className="flex w-[320px] flex-col gap-4 overflow-hidden">
-          <div className="rounded-xl border border-border bg-card p-4">
+        <section className="flex w-[320px] min-h-0 flex-col gap-4 overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-card p-4">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-foreground">部门树</p>
@@ -669,16 +669,18 @@ export function DepartmentsUsers() {
                 </button>
               </div>
             </div>
-            <DepartmentTree
-              selectedId={selectedDeptId ?? 0}
-              onSelect={(id) => {
-                setShowUnassigned(false)
-                setSelectedDeptId(id)
-              }}
-              departments={departments}
-              onDeleteDept={openDeleteDialog}
-              onAddSubDept={openAddDialog}
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <DepartmentTree
+                selectedId={selectedDeptId ?? 0}
+                onSelect={(id) => {
+                  setShowUnassigned(false)
+                  setSelectedDeptId(id)
+                }}
+                departments={departments}
+                onDeleteDept={openDeleteDialog}
+                onAddSubDept={openAddDialog}
+              />
+            </div>
           </div>
 
           <button
