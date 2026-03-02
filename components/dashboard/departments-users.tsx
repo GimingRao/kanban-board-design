@@ -410,12 +410,14 @@ function EditUserDialog({
   isOpen,
   user,
   saving,
+  error,
   onClose,
   onConfirm,
 }: {
   isOpen: boolean
   user: DepartmentUserDto | null
   saving: boolean
+  error: string | null
   onClose: () => void
   onConfirm: (payload: { name: string; email: string; worker_id: string }) => void
 }) {
@@ -461,6 +463,9 @@ function EditUserDialog({
         <h3 id="edit-user-dialog-title" className="text-lg font-semibold text-foreground">
           编辑用户
         </h3>
+        {error && (
+          <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+        )}
         <div className="mt-4 space-y-3">
           <label className="block text-sm text-foreground">
             姓名
@@ -643,6 +648,7 @@ export function DepartmentsUsers() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<DepartmentUserDto | null>(null)
   const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   const reloadDepartments = async () => {
     try {
@@ -767,6 +773,7 @@ export function DepartmentsUsers() {
 
   const openEditDialog = (user: DepartmentUserDto) => {
     setEditingUser(user)
+    setEditError(null)
     setEditDialogOpen(true)
   }
 
@@ -774,6 +781,7 @@ export function DepartmentsUsers() {
     if (!editingUser) return
     try {
       setEditSaving(true)
+      setEditError(null)
       await updateUser(editingUser.id, {
         name: payload.name.trim() || null,
         email: payload.email.trim() || null,
@@ -788,8 +796,14 @@ export function DepartmentsUsers() {
       setDeptUsers(newDeptUsers ?? [])
       setEditDialogOpen(false)
       setEditingUser(null)
+      setEditError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "更新用户失败")
+      const message = err instanceof Error ? err.message : "更新用户失败"
+      if (message.includes("worker_id already exists")) {
+        setEditError("工号已存在，请更换后重试")
+      } else {
+        setEditError(message)
+      }
     } finally {
       setEditSaving(false)
     }
@@ -983,10 +997,12 @@ export function DepartmentsUsers() {
         isOpen={editDialogOpen}
         user={editingUser}
         saving={editSaving}
+        error={editError}
         onClose={() => {
           if (editSaving) return
           setEditDialogOpen(false)
           setEditingUser(null)
+          setEditError(null)
         }}
         onConfirm={handleEditUser}
       />
