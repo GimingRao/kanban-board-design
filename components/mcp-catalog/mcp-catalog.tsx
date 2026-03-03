@@ -135,7 +135,7 @@ export function McpCatalog() {
         code: form.code.trim(),
         name: form.name.trim(),
         version: form.version.trim() || "1.0.0",
-        description: form.description.trim() || undefined,
+        description: form.description.trim() || null,
       })
 
       if (result.success) {

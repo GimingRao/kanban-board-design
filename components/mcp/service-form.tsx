@@ -93,15 +93,15 @@ export function ServiceForm({ service, onSuccess, onCancel }: ServiceFormProps) 
     try {
       const data = {
         name: values.name,
-        description: values.description,
+        description: values.description || null,
         service_type: values.service_type as McpServiceType,
-        command: values.service_type === "stdio" ? values.command : undefined,
-        args: values.service_type === "stdio" && values.args ? values.args.split(" ").filter(Boolean) : undefined,
-        url: values.service_type !== "stdio" ? values.url : undefined,
+        command: values.service_type === "stdio" ? values.command || null : null,
+        args: values.service_type === "stdio" && values.args ? values.args.split(" ").filter(Boolean) : null,
+        url: values.service_type !== "stdio" ? values.url || null : null,
         enabled: values.enabled,
         timeout: values.timeout,
-        tags: tags.length > 0 ? tags : undefined,
-        provider: values.provider,
+        tags: tags.length > 0 ? tags : null,
+        provider: values.provider || null,
       }
 
       let result

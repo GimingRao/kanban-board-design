@@ -37,8 +37,8 @@ export async function createSkill(data: SkillFormData): Promise<ApiResponse<Skil
   const payload = {
     name: data.name,
     slug: data.code,
-    description: data.description,
-    category: data.category_id !== undefined ? String(data.category_id) : undefined,
+    description: data.description || null,
+    category: data.category_id !== undefined ? String(data.category_id) : null,
   }
   return post<Skill>(`${API_PREFIX}`, payload)
 }
@@ -53,8 +53,8 @@ export async function updateSkill(
   const payload = {
     name: data.name,
     slug: data.code,
-    description: data.description,
-    category: data.category_id !== undefined ? String(data.category_id) : undefined,
+    description: data.description || null,
+    category: data.category_id !== undefined ? String(data.category_id) : null,
   }
   return patch<Skill>(`${API_PREFIX}/${id}`, payload)
 }
