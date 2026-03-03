@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Award, Crown, Medal } from "lucide-react"
@@ -69,6 +69,19 @@ export function LeaderboardPanel({
   const [data, setData] = useState<AIRatioLeaderboardDto | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  const handleWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const canScroll = el.scrollHeight > el.clientHeight
+    if (!canScroll || e.deltaY === 0) return
+
+    el.scrollTop += e.deltaY
+    e.preventDefault()
+    e.stopPropagation()
+  }
 
   useEffect(() => {
     const parsed = parseMonth(selectedMonth)
@@ -110,7 +123,7 @@ export function LeaderboardPanel({
   }, [activeTab, selectedMonth, departmentLevel])
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-border bg-card">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
       <div className="border-b border-border p-4">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LeaderboardTab)}>
           <TabsList>
@@ -128,7 +141,11 @@ export function LeaderboardPanel({
           </div>
         )}
       </div>
-      <div className="flex-1 overflow-auto p-4">
+      <div
+        ref={scrollRef}
+        onWheel={handleWheel}
+        className="min-h-0 flex-1 overflow-auto p-4"
+      >
         {loading ? (
           <LeaderboardSkeleton />
         ) : error ? (

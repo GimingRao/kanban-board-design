@@ -90,13 +90,15 @@ export function AiRatioBoardContent() {
       />
 
       <main className="flex-1 overflow-hidden p-4 sm:p-6">
-        <div className="grid h-full grid-cols-1 gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-[35%_65%]">
-          <LeaderboardPanel
-            selectedMonth={selectedMonth}
-            onSelectedItemChange={setSelectedLeaderboardItem}
-          />
+        <div className="grid h-full min-h-0 grid-cols-1 gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-[35%_65%]">
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            <LeaderboardPanel
+              selectedMonth={selectedMonth}
+              onSelectedItemChange={setSelectedLeaderboardItem}
+            />
+          </div>
 
-          <div className="flex flex-col gap-6 overflow-y-auto">
+          <div className="flex min-h-0 flex-col gap-6 overflow-y-auto">
             <TrendChartPanel
               selectedItem={selectedLeaderboardItem}
               selectedMonth={selectedMonth}

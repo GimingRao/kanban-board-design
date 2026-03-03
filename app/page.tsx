@@ -31,7 +31,7 @@ export default function Page() {
   return (
     <div className="flex h-screen flex-col bg-background">
       <Header activeTab={activeTab} onTabChange={setActiveTab} />
-      <main className="flex-1 overflow-hidden">
+      <main className="min-h-0 flex-1 overflow-hidden">
         {renderContent()}
       </main>
     </div>

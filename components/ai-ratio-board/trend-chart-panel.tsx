@@ -56,20 +56,44 @@ export function TrendChartPanel({
     setLoading(true)
     setError(null)
 
-    const fetchTrend = selectedItem?.type === "department"
-      ? () => fetchDepartmentTrend({
-          department_id: selectedItem.id,
+    let fetchTrend: () => Promise<any>
+
+    if (selectedItem?.type === "department") {
+      fetchTrend = () => fetchDepartmentTrend({
+        department_id: selectedItem.id,
+        start_year: start.year,
+        start_month: start.month,
+        end_year: end.year,
+        end_month: end.month,
+      })
+    } else if (selectedItem?.type === "user") {
+      // 用户趋势：通过部门查询（如果用户有部门则查询该部门，否则查所有仓库）
+      const userDeptId = selectedItem.departmentId ?? -1
+      if (userDeptId !== -1) {
+        fetchTrend = () => fetchDepartmentTrend({
+          department_id: userDeptId,
           start_year: start.year,
           start_month: start.month,
           end_year: end.year,
           end_month: end.month,
         })
-      : () => fetchRepoTrend({
+      } else {
+        // 无部门用户，查询所有仓库趋势
+        fetchTrend = () => fetchRepoTrend({
           start_year: start.year,
           start_month: start.month,
           end_year: end.year,
           end_month: end.month,
         })
+      }
+    } else {
+      fetchTrend = () => fetchRepoTrend({
+        start_year: start.year,
+        start_month: start.month,
+        end_year: end.year,
+        end_month: end.month,
+      })
+    }
 
     fetchTrend()
       .then((result) => {
