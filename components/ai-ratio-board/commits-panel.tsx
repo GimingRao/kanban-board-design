@@ -239,7 +239,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
                     {item.commit.message?.trim() || "-"}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-accent">
-                    {(item.stats.ai_ratio * 100).toFixed(1)}%
+                    {item.stats.ai_ratio.toFixed(1)}%
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-green-600">
                     +{item.stats.additions.toLocaleString()}
