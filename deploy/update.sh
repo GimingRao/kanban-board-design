@@ -10,8 +10,8 @@ echo "⬇️ 拉取最新代码..."
 git pull
 echo "✅ 代码已更新"
 
-echo "📦 构建镜像..."
-docker build -t kanban-board-design:latest . -q
+echo "📦 构建镜像（显示详细进度）..."
+DOCKER_BUILDKIT=1 docker build --progress=plain -t kanban-board-design:latest .
 echo "✅ 镜像构建完成"
 
 echo "🔄 重启容器..."
