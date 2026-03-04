@@ -307,6 +307,12 @@ export interface AIRatioLeaderboardDto {
   period: string
   sort: "ai_ratio" | "ai_lines" | "total_lines"
   items: AIRatioLeaderboardItemDto[]
+  pagination: {
+    total: number
+    page: number
+    page_size: number
+    total_pages: number
+  }
 }
 
 export interface AIRatioLeaderboardItemDto {
@@ -379,17 +385,19 @@ export function fetchAIRatioDepartmentLeaderboard(
      sort?: "ai_ratio" | "ai_lines" | "total_lines"
      year: number
      month: number
-     limit?: number
+     page?: number
+     page_size?: number
    }
  ): Promise<AIRatioLeaderboardDto> {
    const repoId = options.repo_id ?? -1
-   const limit = options.limit ?? 20
+   const page = options.page ?? 1
+   const pageSize = options.page_size ?? 20
    const sort = options.sort ?? "ai_ratio"
    const levelQuery = options.level !== undefined ? `&level=${options.level}` : ""
    const parentQuery = options.parent_id !== undefined ? `&parent_id=${options.parent_id}` : ""
 
    return getJson<AIRatioLeaderboardDto>(
-     `/leaderboards/departments?repo_id=${repoId}&sort=${sort}&year=${options.year}&month=${options.month}&limit=${limit}${levelQuery}${parentQuery}`
+     `/leaderboards/departments?repo_id=${repoId}&sort=${sort}&year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}${levelQuery}${parentQuery}`
    )
  }
 
@@ -401,16 +409,20 @@ export function fetchAIRatioUserLeaderboard(
      sort?: "ai_ratio" | "ai_lines" | "total_lines"
      year: number
      month: number
-     limit?: number
+     search?: string
+     page?: number
+     page_size?: number
    }
  ): Promise<AIRatioLeaderboardDto> {
    const repoId = options.repo_id ?? -1
-   const limit = options.limit ?? 20
+   const page = options.page ?? 1
+   const pageSize = options.page_size ?? 20
    const sort = options.sort ?? "ai_ratio"
    const deptQuery = options.department_id !== undefined ? `&department_id=${options.department_id}` : ""
+   const searchQuery = options.search !== undefined ? `&search=${encodeURIComponent(options.search)}` : ""
 
    return getJson<AIRatioLeaderboardDto>(
-     `/leaderboards/users?repo_id=${repoId}&sort=${sort}&year=${options.year}&month=${options.month}&limit=${limit}${deptQuery}`
+     `/leaderboards/users?repo_id=${repoId}&sort=${sort}&year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}${deptQuery}${searchQuery}`
    )
  }
 

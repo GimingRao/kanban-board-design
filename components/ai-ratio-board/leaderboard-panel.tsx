@@ -1,12 +1,18 @@
 "use client"
 
-import { useEffect, useState, useMemo, useRef } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Award, Crown, Medal } from "lucide-react"
+import { Award, Crown, Medal, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { fetchAIRatioDepartmentLeaderboard, fetchAIRatioUserLeaderboard, type AIRatioLeaderboardDto, type AIRatioLeaderboardItemDto } from "@/lib/api"
+import {
+  fetchAIRatioDepartmentLeaderboard,
+  fetchAIRatioUserLeaderboard,
+  type AIRatioLeaderboardDto,
+} from "@/lib/api"
 import { DepartmentLevelSelector } from "./department-level-selector"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 
 function parseMonth(value: string): { year: number; month: number } | null {
   const [y, m] = value.split("-")
@@ -69,6 +75,10 @@ export function LeaderboardPanel({
   const [data, setData] = useState<AIRatioLeaderboardDto | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [searchInput, setSearchInput] = useState("")
+  const [searchKeyword, setSearchKeyword] = useState("")
+  const [page, setPage] = useState(1)
+  const [pageSize] = useState(20)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   const handleWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
@@ -84,6 +94,17 @@ export function LeaderboardPanel({
   }
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearchKeyword(searchInput.trim())
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
+
+  useEffect(() => {
+    setPage(1)
+  }, [selectedMonth, activeTab, departmentLevel, searchKeyword])
+
+  useEffect(() => {
     const parsed = parseMonth(selectedMonth)
     if (!parsed) return
 
@@ -91,16 +112,24 @@ export function LeaderboardPanel({
     setLoading(true)
     setError(null)
 
-    const fetchData = activeTab === "department"
-      ? () => fetchAIRatioDepartmentLeaderboard({
-          year: parsed.year,
-          month: parsed.month,
-          level: departmentLevel === "all" ? undefined : departmentLevel === "level2" ? 1 : 2,
-        })
-      : () => fetchAIRatioUserLeaderboard({
-          year: parsed.year,
-          month: parsed.month,
-        })
+    const fetchData =
+      activeTab === "department"
+        ? () =>
+            fetchAIRatioDepartmentLeaderboard({
+              year: parsed.year,
+              month: parsed.month,
+              level: departmentLevel === "all" ? undefined : departmentLevel === "level2" ? 1 : 2,
+              page,
+              page_size: pageSize,
+            })
+        : () =>
+            fetchAIRatioUserLeaderboard({
+              year: parsed.year,
+              month: parsed.month,
+              search: searchKeyword || undefined,
+              page,
+              page_size: pageSize,
+            })
 
     fetchData()
       .then((result) => {
@@ -120,7 +149,11 @@ export function LeaderboardPanel({
     return () => {
       cancelled = true
     }
-  }, [activeTab, selectedMonth, departmentLevel])
+  }, [activeTab, selectedMonth, departmentLevel, searchKeyword, page, pageSize])
+
+  const totalPages = data?.pagination.total_pages ?? 0
+  const canPrev = page > 1
+  const canNext = totalPages > 0 && page < totalPages
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
@@ -134,28 +167,28 @@ export function LeaderboardPanel({
         {activeTab === "department" && (
           <div className="mt-3 flex items-center gap-2">
             <span className="text-xs text-muted-foreground">层级筛选:</span>
-            <DepartmentLevelSelector
-              value={departmentLevel}
-              onChange={setDepartmentLevel}
+            <DepartmentLevelSelector value={departmentLevel} onChange={setDepartmentLevel} />
+          </div>
+        )}
+        {activeTab === "user" && (
+          <div className="mt-3 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="搜索姓名或用户名"
+              className="pl-10"
             />
           </div>
         )}
       </div>
-      <div
-        ref={scrollRef}
-        onWheel={handleWheel}
-        className="min-h-0 flex-1 overflow-auto p-4"
-      >
+      <div ref={scrollRef} onWheel={handleWheel} className="min-h-0 flex-1 overflow-auto p-4">
         {loading ? (
           <LeaderboardSkeleton />
         ) : error ? (
-          <div className="flex h-full items-center justify-center text-sm text-destructive">
-            {error}
-          </div>
+          <div className="flex h-full items-center justify-center text-sm text-destructive">{error}</div>
         ) : !data || data.items.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            暂无数据
-          </div>
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">暂无数据</div>
         ) : (
           <table className="w-full">
             <thead className="sticky top-0 bg-card">
@@ -174,7 +207,12 @@ export function LeaderboardPanel({
                   if (activeTab === "department" && item.department) {
                     onSelectedItemChange({ type: "department", id: item.department.id, name: item.department.name })
                   } else if (activeTab === "user" && item.user) {
-                    onSelectedItemChange({ type: "user", id: item.user.id, name: item.user.name, departmentId: item.user.department?.id })
+                    onSelectedItemChange({
+                      type: "user",
+                      id: item.user.id,
+                      name: item.user.name,
+                      departmentId: item.user.department?.id,
+                    })
                   }
                 }
                 const handleKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
@@ -185,7 +223,7 @@ export function LeaderboardPanel({
                 }
                 return (
                   <tr
-                    key={item.rank}
+                    key={`${item.rank}-${activeTab}-${name}`}
                     onClick={handleClick}
                     onKeyDown={handleKeyDown}
                     tabIndex={0}
@@ -197,13 +235,9 @@ export function LeaderboardPanel({
                     )}
                   >
                     <td className="px-4 py-3">
-                      <div className="flex w-8 items-center justify-center">
-                        {getRankIcon(item.rank)}
-                      </div>
+                      <div className="flex w-8 items-center justify-center">{getRankIcon(item.rank)}</div>
                     </td>
-                    <td className="px-4 py-3 font-medium text-card-foreground">
-                      {name}
-                    </td>
+                    <td className="px-4 py-3 font-medium text-card-foreground">{name}</td>
                     <td className="px-4 py-3 text-right font-mono text-sm text-card-foreground">
                       {item.metrics.total_lines.toLocaleString()}
                     </td>
@@ -220,6 +254,33 @@ export function LeaderboardPanel({
           </table>
         )}
       </div>
+      {data && data.pagination.total > 0 && (
+        <div className="flex items-center justify-between border-t border-border p-4">
+          <div className="text-xs text-muted-foreground">
+            第 {page} / {Math.max(totalPages, 1)} 页（共 {data.pagination.total} 条）
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={!canPrev || loading}
+            >
+              上一页
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => (totalPages > 0 ? Math.min(totalPages, p + 1) : p + 1))}
+              disabled={!canNext || loading}
+            >
+              下一页
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
