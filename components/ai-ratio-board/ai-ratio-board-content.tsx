@@ -1,12 +1,17 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import {
   AiRatioBoardHeader,
   LeaderboardPanel,
   TrendChartPanel,
   CommitsPanel,
 } from "@/components/ai-ratio-board"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import type { SelectedItem } from "@/components/ai-ratio-board/leaderboard-panel"
 import { fetchRepoTrend, type SummaryMetrics } from "@/lib/api"
 
@@ -43,6 +48,7 @@ export function AiRatioBoardContent() {
   const [selectedLeaderboardItem, setSelectedLeaderboardItem] = useState<SelectedItem | null>(null)
   const [totals, setTotals] = useState<SummaryMetrics | null>(null)
   const [totalsLoading, setTotalsLoading] = useState(false)
+  const [showTrend, setShowTrend] = useState(false)
 
   // 获取当月 totals 数据
   useEffect(() => {
@@ -98,19 +104,29 @@ export function AiRatioBoardContent() {
             />
           </div>
 
-          <div className="flex min-h-0 flex-col gap-6 overflow-y-auto">
-            <TrendChartPanel
-              selectedItem={selectedLeaderboardItem}
-              selectedMonth={selectedMonth}
-              startMonth={chartStartMonth}
-              endMonth={chartEndMonth}
-              onStartMonthChange={setChartStartMonth}
-              onEndMonthChange={setChartEndMonth}
-            />
+          <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
             <CommitsPanel
               selectedItem={selectedLeaderboardItem}
               selectedMonth={selectedMonth}
             />
+
+            <Collapsible open={showTrend} onOpenChange={setShowTrend}>
+              <CollapsibleTrigger className="w-full rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary/60">
+                {showTrend ? "收起趋势图" : "更多（展开趋势图）"}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-3">
+                {showTrend ? (
+                  <TrendChartPanel
+                    selectedItem={selectedLeaderboardItem}
+                    selectedMonth={selectedMonth}
+                    startMonth={chartStartMonth}
+                    endMonth={chartEndMonth}
+                    onStartMonthChange={setChartStartMonth}
+                    onEndMonthChange={setChartEndMonth}
+                  />
+                ) : null}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         </div>
       </main>

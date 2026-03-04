@@ -1,9 +1,19 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { fetchAICommitsByDepartment, fetchAICommitsByRepo, fetchAICommitsByUser, type AICommitsDto, type AICommitItemDto } from "@/lib/api"
+import { useEffect, useRef, useState } from "react"
+import { fetchAICommitsByDepartment, fetchAICommitsByRepo, fetchAICommitsByUser, type AICommitsDto } from "@/lib/api"
 import type { SelectedItem } from "./leaderboard-panel"
 import { Button } from "@/components/ui/button"
+
+const MIN_VISIBLE_ROWS = 5
+const MAX_VISIBLE_ROWS = 8
+const DEFAULT_VISIBLE_ROWS = 6
+const RESERVED_HEIGHT_PX = 220
+const DEFAULT_ROW_HEIGHT_PX = 54
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
 
 function parseMonth(value: string): { year: number; month: number } | null {
   const [y, m] = value.split("-")
@@ -37,6 +47,48 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const [visibleRows, setVisibleRows] = useState(DEFAULT_VISIBLE_ROWS)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    let rafId = 0
+
+    const updateRows = () => {
+      if (!panelRef.current) return
+
+      const panelTop = panelRef.current.getBoundingClientRect().top
+      const firstRow = panelRef.current.querySelector("tbody tr") as HTMLTableRowElement | null
+      const measuredRowHeight = firstRow?.getBoundingClientRect().height
+      const rowHeight = measuredRowHeight && measuredRowHeight > 0 ? measuredRowHeight : DEFAULT_ROW_HEIGHT_PX
+      const availableHeight = window.innerHeight - panelTop - RESERVED_HEIGHT_PX
+      const rows = clamp(Math.floor(availableHeight / rowHeight), MIN_VISIBLE_ROWS, MAX_VISIBLE_ROWS)
+
+      setVisibleRows((prev) => (prev === rows ? prev : rows))
+    }
+
+    const onResize = () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId)
+      }
+      rafId = window.requestAnimationFrame(updateRows)
+    }
+
+    updateRows()
+    window.addEventListener("resize", onResize)
+
+    return () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId)
+      }
+      window.removeEventListener("resize", onResize)
+    }
+  }, [selectedItem, selectedMonth, data])
+
+  useEffect(() => {
+    setPage(1)
+  }, [visibleRows])
 
   useEffect(() => {
     if (!selectedItem) {
@@ -60,7 +112,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
         year: parsed.year,
         month: parsed.month,
         page: 1,
-        page_size: 20,
+        page_size: visibleRows,
       })
     } else if (selectedItem.type === "user") {
       fetchData = () => fetchAICommitsByUser({
@@ -68,7 +120,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
         year: parsed.year,
         month: parsed.month,
         page: 1,
-        page_size: 20,
+        page_size: visibleRows,
       })
     } else {
       fetchData = () => fetchAICommitsByRepo({
@@ -76,7 +128,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
         year: parsed.year,
         month: parsed.month,
         page: 1,
-        page_size: 20,
+        page_size: visibleRows,
       })
     }
 
@@ -98,7 +150,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
     return () => {
       cancelled = true
     }
-  }, [selectedItem, selectedMonth])
+  }, [selectedItem, selectedMonth, visibleRows])
 
   // 分页加载
   useEffect(() => {
@@ -119,7 +171,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
         year: parsed.year,
         month: parsed.month,
         page,
-        page_size: 20,
+        page_size: visibleRows,
       })
     } else if (selectedItem.type === "user") {
       fetchData = () => fetchAICommitsByUser({
@@ -127,7 +179,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
         year: parsed.year,
         month: parsed.month,
         page,
-        page_size: 20,
+        page_size: visibleRows,
       })
     } else {
       fetchData = () => fetchAICommitsByRepo({
@@ -135,7 +187,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
         year: parsed.year,
         month: parsed.month,
         page,
-        page_size: 20,
+        page_size: visibleRows,
       })
     }
 
@@ -156,7 +208,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
     return () => {
       cancelled = true
     }
-  }, [page, selectedItem, selectedMonth])
+  }, [page, selectedItem, selectedMonth, visibleRows])
 
   const totalPages = data?.pagination.total_pages ?? 0
   const canPrev = page > 1
@@ -169,7 +221,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
   }
 
   return (
-    <div className="flex min-h-[300px] flex-col rounded-lg border border-border bg-card">
+    <div ref={panelRef} className="flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-card">
       <div className="border-b border-border p-4">
         <h3 className="text-lg font-semibold text-card-foreground">
           提交明细

@@ -133,7 +133,7 @@ export function TrendChartPanel({
   }, [dataPoints])
 
   return (
-    <div className="flex min-h-[400px] flex-col rounded-lg border border-border bg-card p-6">
+    <div className="flex min-h-[280px] flex-col rounded-lg border border-border bg-card p-4">
       <div className="mb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -147,7 +147,7 @@ export function TrendChartPanel({
         </div>
       </div>
 
-      <div className="flex min-h-[300px] flex-1">
+      <div className="flex min-h-[200px] flex-1">
         {loading ? (
           <div className="flex w-full items-center justify-center text-sm text-muted-foreground">
             加载中...
