@@ -183,6 +183,18 @@ export interface UserProfileCommitItemDto {
   repo_web_url?: string | null
 }
 
+export interface UserProfileAIRecordItemDto {
+  id: number
+  event_id: string
+  ai_tool: string
+  timestamp: string | null
+  file_path: string
+  status: "pending" | "partially_matched" | "fully_matched" | string
+  lines_added_total: number
+  diff_preview: string
+  diff_truncated: boolean
+}
+
 export interface UserProfileDto {
   repo_id: number
   user: {
@@ -209,6 +221,13 @@ export interface UserProfileDto {
     total_pages: number
   }
   recent_commits: UserProfileCommitItemDto[]
+  ai_records_pagination: {
+    total: number
+    page: number
+    page_size: number
+    total_pages: number
+  }
+  recent_ai_records: UserProfileAIRecordItemDto[]
 }
 
 export function fetchRepos(): Promise<RepoDto[]> {

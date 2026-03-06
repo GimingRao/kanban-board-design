@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 
-import { fetchUserProfile, type UserProfileCommitItemDto } from "@/lib/api"
+import { fetchUserProfile, type UserProfileCommitItemDto, type UserProfileAIRecordItemDto } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
@@ -31,6 +31,21 @@ function monthToLabel(period: string) {
 function buildCommitUrl(commit: UserProfileCommitItemDto) {
   if (!commit.repo_web_url) return null
   return `${commit.repo_web_url.replace(/\/+$/, "")}/-/commit/${commit.commit_sha}`
+}
+
+function aiStatusLabel(status: UserProfileAIRecordItemDto["status"]) {
+  if (status === "fully_matched") return "已匹配"
+  if (status === "partially_matched") return "部分匹配"
+  if (status === "pending") return "待匹配"
+  return status || "-"
+}
+
+function formatAiTool(tool: string) {
+  return tool || "-"
+}
+
+function truncatePreviewSuffix(truncated: boolean) {
+  return truncated ? "\n...（已截断）" : ""
 }
 
 export default function UserProfilePage() {
@@ -98,6 +113,9 @@ export default function UserProfilePage() {
 
   const canPrev = (data?.pagination.page ?? 1) > 1
   const canNext = (data?.pagination.total_pages ?? 0) > (data?.pagination.page ?? 1)
+  const canPrevAi = (data?.ai_records_pagination.page ?? 1) > 1
+  const canNextAi =
+    (data?.ai_records_pagination.total_pages ?? 0) > (data?.ai_records_pagination.page ?? 1)
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -229,6 +247,52 @@ export default function UserProfilePage() {
                       上一页
                     </Button>
                     <Button variant="outline" size="sm" disabled={!canNext || loading} onClick={() => setPage((p) => p + 1)}>
+                      下一页
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>AI 代码记录</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {data.recent_ai_records.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">该时间范围暂无 AI 代码记录</div>
+                ) : (
+                  <div className="space-y-3">
+                    {data.recent_ai_records.map((record) => (
+                      <div key={record.id} className="rounded-md border border-border/60 p-3">
+                        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <span>{formatDateTime(record.timestamp)}</span>
+                          <span>Event: {record.event_id}</span>
+                          <span>Tool: {formatAiTool(record.ai_tool)}</span>
+                          <span>状态：{aiStatusLabel(record.status)}</span>
+                          <span>新增行数：{record.lines_added_total}</span>
+                        </div>
+                        <div className="mb-2 text-sm">
+                          <span className="text-muted-foreground">文件：</span>
+                          <span className="font-mono">{record.file_path || "-"}</span>
+                        </div>
+                        <pre className="max-h-64 overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap break-words">
+                          {(record.diff_preview || "") + truncatePreviewSuffix(record.diff_truncated)}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-xs text-muted-foreground">
+                    第 {data.ai_records_pagination.page} / {Math.max(data.ai_records_pagination.total_pages, 1)} 页（共 {data.ai_records_pagination.total} 条）
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={!canPrevAi || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                      上一页
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={!canNextAi || loading} onClick={() => setPage((p) => p + 1)}>
                       下一页
                     </Button>
                   </div>
