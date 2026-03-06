@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 
-type LevelOption = "all" | "level2" | "level3"
+type LevelOption = "level2" | "level3"
 
 interface DepartmentLevelSelectorProps {
   value: LevelOption
@@ -11,7 +11,6 @@ interface DepartmentLevelSelectorProps {
 }
 
 const options = [
-  { value: "all" as const, label: "所有部门" },
   { value: "level2" as const, label: "二级部门" },
   { value: "level3" as const, label: "三级部门" },
 ]

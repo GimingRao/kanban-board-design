@@ -71,7 +71,7 @@ export function LeaderboardPanel({
   onSelectedItemChange,
 }: LeaderboardPanelProps) {
   const [activeTab, setActiveTab] = useState<LeaderboardTab>("department")
-  const [departmentLevel, setDepartmentLevel] = useState<"all" | "level2" | "level3">("all")
+  const [departmentLevel, setDepartmentLevel] = useState<"level2" | "level3">("level2")
   const [data, setData] = useState<AIRatioLeaderboardDto | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -118,7 +118,7 @@ export function LeaderboardPanel({
             fetchAIRatioDepartmentLeaderboard({
               year: parsed.year,
               month: parsed.month,
-              level: departmentLevel === "all" ? undefined : departmentLevel === "level2" ? 1 : 2,
+              level: departmentLevel === "level2" ? 2 : 3,
               page,
               page_size: pageSize,
             })

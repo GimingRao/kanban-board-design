@@ -13,7 +13,7 @@ context: |
   - Backend: Python API (独立服务)
 
   API:
-  - Base URL: NEXT_PUBLIC_API_BASE_URL (default: http://localhost:8000)
+  - Base URL: NEXT_PUBLIC_API_BASE_URL (default: http://192.168.2.121:8000)
   - All requests: cache: no-store
   - Response format: JSON
 
