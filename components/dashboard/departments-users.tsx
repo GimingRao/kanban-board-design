@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, useRef, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
   fetchDepartmentsTree,
@@ -204,11 +205,13 @@ function UserCard({
   selected,
   onSelect,
   onEdit,
+  onOpenProfile,
 }: {
   user: DepartmentUserDto
   selected: boolean
   onSelect: (userId: number) => void
   onEdit: (user: DepartmentUserDto) => void
+  onOpenProfile: (user: DepartmentUserDto) => void
 }) {
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3">
@@ -223,7 +226,13 @@ function UserCard({
             aria-label={`选择 ${user.name}`}
           />
           <div>
-            <p className="text-sm font-semibold text-foreground">{user.name}</p>
+            <button
+              type="button"
+              onClick={() => onOpenProfile(user)}
+              className="text-sm font-semibold text-foreground hover:text-primary hover:underline"
+            >
+              {user.name}
+            </button>
             <p className="text-xs text-muted-foreground">工号：{user.worker_id || "未填写"}</p>
           </div>
         </div>
@@ -624,6 +633,7 @@ function BatchAssignDepartmentDialog({
 }
 
 export function DepartmentsUsers() {
+  const router = useRouter()
   const [departments, setDepartments] = useState<DepartmentNodeDto[]>([])
   const [deptUsers, setDeptUsers] = useState<DepartmentUserDto[]>([])
   const [unassignedUsers, setUnassignedUsers] = useState<DepartmentUserDto[]>([])
@@ -775,6 +785,10 @@ export function DepartmentsUsers() {
     setEditingUser(user)
     setEditError(null)
     setEditDialogOpen(true)
+  }
+
+  const openUserProfile = (user: DepartmentUserDto) => {
+    router.push(`/users/${user.id}?repoId=-1`)
   }
 
   const handleEditUser = async (payload: { name: string; email: string; worker_id: string }) => {
@@ -971,6 +985,7 @@ export function DepartmentsUsers() {
                     selected={selectedUserIds.has(user.id)}
                     onSelect={handleToggleUser}
                     onEdit={openEditDialog}
+                    onOpenProfile={openUserProfile}
                   />
                 ))}
               </div>

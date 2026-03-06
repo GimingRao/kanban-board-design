@@ -1,14 +1,10 @@
-﻿"use client"
+"use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { Award, Crown, Medal } from "lucide-react"
 
-import {
-  fetchUserCommits,
-  type LeaderboardDto,
-  type LeaderboardItemDto,
-  type UserCommitsDto,
-} from "@/lib/api"
+import { type LeaderboardDto } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import {
   Select,
@@ -17,14 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
 
 interface LeaderboardProps {
   repoId: number
@@ -83,30 +71,16 @@ function parseMonth(value: string): { year: number; month: number } | null {
   return { year, month }
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) return "-"
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return d.toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
 export function Leaderboard({
   repoId,
-  repoWebUrl,
   data,
   loading,
   selectedMonth,
   onMonthChange,
 }: LeaderboardProps) {
+  const router = useRouter()
   const items = data?.items ?? []
   const isGlobalRepo = repoId === -1
-  // 判断是否是组织视图的"所有部门"视图
   const isAllDepartmentsView = repoId === -1000
 
   const monthOptions = useMemo(() => {
@@ -126,63 +100,14 @@ export function Leaderboard({
     return [extra, ...recent]
   }, [selectedMonth])
 
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [activeUser, setActiveUser] = useState<LeaderboardItemDto | null>(null)
-  const [commitPage, setCommitPage] = useState(1)
-  const [commitData, setCommitData] = useState<UserCommitsDto | null>(null)
-  const [commitLoading, setCommitLoading] = useState(false)
-  const [commitError, setCommitError] = useState<string | null>(null)
-
-  const monthAnchor = useMemo(() => parseMonth(selectedMonth), [selectedMonth])
-
-  useEffect(() => {
-    if (!dialogOpen || !activeUser || !monthAnchor) return
-    if (!Number.isFinite(repoId) || repoId === 0) return
-
-    const abortController = new AbortController()
-    setCommitLoading(true)
-    setCommitError(null)
-
-    fetchUserCommits(repoId, activeUser.user_id, {
-      year: monthAnchor.year,
-      month: monthAnchor.month,
-      page: commitPage,
-      pageSize: 10,
-    }, abortController.signal)
-      .then((res) => {
-        if (abortController.signal.aborted) return
-        setCommitData(res)
-      })
-      .catch((err: unknown) => {
-        if (abortController.signal.aborted) return
-        const message = err instanceof Error ? err.message : "加载提交明细失败"
-        setCommitError(message)
-        setCommitData(null)
-      })
-      .finally(() => {
-        if (!abortController.signal.aborted) setCommitLoading(false)
-      })
-
-    return () => {
-      abortController.abort()
+  const openUserProfile = (userId: number) => {
+    const month = parseMonth(selectedMonth)
+    const params = new URLSearchParams({ repoId: String(repoId) })
+    if (month) {
+      params.set("year", String(month.year))
+      params.set("month", String(month.month))
     }
-  }, [dialogOpen, activeUser, monthAnchor, repoId, commitPage])
-
-  const totalPages = commitData?.total_pages ?? 0
-  const canPrev = commitPage > 1
-  const canNext = totalPages > 0 && commitPage < totalPages
-
-  const openUserDialog = (user: LeaderboardItemDto) => {
-    setActiveUser(user)
-    setCommitPage(1)
-    setDialogOpen(true)
-  }
-
-  const buildCommitUrl = (sha: string, repoUrl?: string | null) => {
-    const url = repoUrl ?? repoWebUrl
-    if (!url) return null
-    const base = url.replace(/\/+$/, "")
-    return `${base}/-/commit/${sha}`
+    router.push(`/users/${userId}?${params.toString()}`)
   }
 
   return (
@@ -190,13 +115,11 @@ export function Leaderboard({
       <div className="border-b border-border p-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-card-foreground">
-              提交排行榜
-            </h3>
+            <h3 className="text-lg font-semibold text-card-foreground">提交排行榜</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               {isGlobalRepo
-                ? "点击某一行查看该用户在所有仓库的当月提交明细"
-                : "点击某一行查看该用户当月提交明细"}
+                ? "点击某一行进入该用户主页（所有仓库）"
+                : "点击某一行进入该用户主页"}
             </p>
           </div>
 
@@ -246,199 +169,76 @@ export function Leaderboard({
                 const handleKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
-                    openUserDialog(dev)
+                    openUserProfile(dev.user_id)
                   }
                 }
                 return (
                   <tr
                     key={dev.user_id}
-                    onClick={() => openUserDialog(dev)}
+                    onClick={() => openUserProfile(dev.user_id)}
                     onKeyDown={handleKeyDown}
                     tabIndex={0}
                     role="button"
-                    aria-label={`查看 ${dev.name} 的提交明细`}
+                    aria-label={`进入 ${dev.name} 的主页`}
                     className={cn(
                       "cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/60 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset",
                       index < 3 && "bg-secondary/20",
                     )}
                   >
-                  <td className="px-6 py-4">
-                    <div className="flex w-8 items-center justify-center">
-                      {getRankIcon(dev.rank)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium",
-                          dev.rank === 1 && "bg-yellow-500/20 text-yellow-500",
-                          dev.rank === 2 && "bg-gray-400/20 text-gray-400",
-                          dev.rank === 3 && "bg-amber-600/20 text-amber-600",
-                          dev.rank > 3 && "bg-secondary text-secondary-foreground",
-                        )}
-                      >
-                        {avatarFromName(dev.name)}
-                      </div>
-                      <span className="font-medium text-card-foreground">
-                        {dev.name}
-                      </span>
-                    </div>
-                  </td>
-                  {isAllDepartmentsView && (
                     <td className="px-6 py-4">
-                      <span className="text-sm text-muted-foreground">
-                        {dev.department_name ?? "未分配"}
+                      <div className="flex w-8 items-center justify-center">{getRankIcon(dev.rank)}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={cn(
+                            "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium",
+                            dev.rank === 1 && "bg-yellow-500/20 text-yellow-500",
+                            dev.rank === 2 && "bg-gray-400/20 text-gray-400",
+                            dev.rank === 3 && "bg-amber-600/20 text-amber-600",
+                            dev.rank > 3 && "bg-secondary text-secondary-foreground",
+                          )}
+                        >
+                          {avatarFromName(dev.name)}
+                        </div>
+                        <span className="font-medium text-card-foreground">{dev.name}</span>
+                      </div>
+                    </td>
+                    {isAllDepartmentsView && (
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-muted-foreground">{dev.department_name ?? "未分配"}</span>
+                      </td>
+                    )}
+                    <td className="px-6 py-4 text-right">
+                      <span className="font-mono text-sm text-card-foreground">
+                        {dev.added_per_workday.toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                        })}
                       </span>
                     </td>
-                  )}
-                  <td className="px-6 py-4 text-right">
-                    <span className="font-mono text-sm text-card-foreground">
-                      {dev.added_per_workday.toLocaleString(undefined, {
-                        maximumFractionDigits: 2,
-                      })}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <span className="font-mono text-sm text-card-foreground">
-                      {dev.removed_per_workday.toLocaleString(undefined, {
-                        maximumFractionDigits: 2,
-                      })}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <span className="font-mono text-sm text-card-foreground">
-                      {dev.commits.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <span className="font-mono text-sm text-green-500">
-                      +{dev.lines_added.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <span className="font-mono text-sm text-red-500">
-                      -{dev.lines_removed.toLocaleString()}
-                    </span>
-                  </td>
-                </tr>
+                    <td className="px-6 py-4 text-right">
+                      <span className="font-mono text-sm text-card-foreground">
+                        {dev.removed_per_workday.toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="font-mono text-sm text-card-foreground">{dev.commits.toLocaleString()}</span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="font-mono text-sm text-green-500">+{dev.lines_added.toLocaleString()}</span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="font-mono text-sm text-red-500">-{dev.lines_removed.toLocaleString()}</span>
+                    </td>
+                  </tr>
                 )
               })}
             </tbody>
           </table>
         )}
       </div>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[85vh] w-[96vw] sm:!max-w-6xl lg:!max-w-7xl">
-          <DialogHeader>
-            <DialogTitle>
-              {activeUser?.name ?? "开发者"} 的提交明细
-            </DialogTitle>
-            <DialogDescription>
-              {selectedMonth} · 共 {commitData?.total ?? 0} 条提交
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="max-h-[72vh] overflow-auto rounded-md border border-border/60">
-            {commitLoading ? (
-              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                正在加载提交明细...
-              </div>
-            ) : commitError ? (
-              <div className="flex h-40 items-center justify-center px-6 text-sm text-destructive">
-                {commitError}
-              </div>
-            ) : (commitData?.items.length ?? 0) === 0 ? (
-              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                当月没有提交记录
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-card">
-                  <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th className="px-4 py-3 whitespace-nowrap">时间</th>
-                    <th className="px-4 py-3 whitespace-nowrap">SHA</th>
-                    <th className="px-4 py-3 whitespace-nowrap">仓库</th>
-                    <th className="px-4 py-3 w-[55%]">提交信息</th>
-                    <th className="px-4 py-3 text-right">新增</th>
-                    <th className="px-4 py-3 text-right">删除</th>
-                    <th className="px-4 py-3 text-right">文件数</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {commitData?.items.map((c) => (
-                    <tr key={c.id} className="border-b border-border/50 align-top">
-                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                        {formatDateTime(c.committed_at)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-card-foreground">
-                        {buildCommitUrl(c.commit_sha, c.repo_web_url) ? (
-                          <a
-                            href={buildCommitUrl(c.commit_sha, c.repo_web_url) as string}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary underline-offset-2 hover:underline"
-                          >
-                            {c.commit_sha.slice(0, 8)}
-                          </a>
-                        ) : (
-                          c.commit_sha.slice(0, 8)
-                        )}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-card-foreground">
-                        {c.repo_name ?? "-"}
-                      </td>
-                      <td className="px-4 py-3 max-w-[640px] whitespace-pre-wrap break-words text-card-foreground">
-                        {c.message?.trim() || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-green-600">
-                        +{c.additions.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-red-600">
-                        -{c.deletions.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-right font-mono text-card-foreground">
-                        {c.files_changed.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-xs text-muted-foreground">
-              第 {commitPage} / {Math.max(totalPages, 1)} 页
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setCommitPage((p) => Math.max(1, p - 1))}
-                disabled={!canPrev || commitLoading}
-              >
-                上一页
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setCommitPage((p) =>
-                    totalPages > 0 ? Math.min(totalPages, p + 1) : p + 1,
-                  )
-                }
-                disabled={!canNext || commitLoading}
-              >
-                下一页
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

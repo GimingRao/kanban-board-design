@@ -167,6 +167,50 @@ export interface UserCommitsDto {
   items: UserCommitItemDto[]
 }
 
+export interface UserProfileCommitItemDto {
+  id: number
+  commit_sha: string
+  committed_at: string | null
+  additions: number
+  deletions: number
+  files_changed: number
+  message: string
+  ai_lines: number
+  human_lines: number
+  ai_ratio: number
+  repo_id: number
+  repo_name: string
+  repo_web_url?: string | null
+}
+
+export interface UserProfileDto {
+  repo_id: number
+  user: {
+    id: number
+    name: string
+    username: string
+    department: {
+      id: number | null
+      name: string
+    }
+  }
+  period: string
+  summary: {
+    commits: number
+    total_lines: number
+    ai_lines: number
+    human_lines: number
+    ai_ratio: number
+  }
+  pagination: {
+    total: number
+    page: number
+    page_size: number
+    total_pages: number
+  }
+  recent_commits: UserProfileCommitItemDto[]
+}
+
 export function fetchRepos(): Promise<RepoDto[]> {
   return getJson<RepoDto[]>("/repos")
 }
@@ -224,6 +268,24 @@ export function fetchUserCommits(
   const pageSize = options.pageSize ?? 10
   return getJson<UserCommitsDto>(
     `/repos/${repoId}/users/${userId}/commits?year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}`,
+    signal,
+  )
+}
+
+export function fetchUserProfile(
+  repoId: number,
+  userId: number,
+  options?: { year?: number; month?: number; page?: number; pageSize?: number },
+  signal?: AbortSignal,
+): Promise<UserProfileDto> {
+  const params = new URLSearchParams()
+  if (options?.year) params.set("year", String(options.year))
+  if (options?.month) params.set("month", String(options.month))
+  if (options?.page) params.set("page", String(options.page))
+  if (options?.pageSize) params.set("page_size", String(options.pageSize))
+  const query = params.toString()
+  return getJson<UserProfileDto>(
+    `/repos/${repoId}/users/${userId}/profile${query ? `?${query}` : ""}`,
     signal,
   )
 }
