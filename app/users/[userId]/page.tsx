@@ -5,10 +5,16 @@ import { useEffect, useState } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 
-import { fetchUserProfile, type UserProfileCommitItemDto, type UserProfileAIRecordItemDto } from "@/lib/api"
+import {
+  fetchUserProfile,
+  type UserProfileAIRecordItemDto,
+  type UserProfileCommitItemDto,
+  type UserProfileDto,
+} from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
+// 格式化时间，统一页面展示风格。
 function formatDateTime(value: string | null) {
   if (!value) return "-"
   const d = new Date(value)
@@ -22,17 +28,26 @@ function formatDateTime(value: string | null) {
   })
 }
 
+// 把接口返回的月份字符串转成中文标签。
 function monthToLabel(period: string) {
   const [year, month] = period.split("-")
   if (!year || !month) return period
   return `${year}年${Number(month)}月`
 }
 
+// 从新老两种提交结构里提取可用跳转地址。
+// 直接使用后端返回的提交链接，避免前端继续依赖 sha 字段。
 function buildCommitUrl(commit: UserProfileCommitItemDto) {
-  if (!commit.repo_web_url) return null
-  return `${commit.repo_web_url.replace(/\/+$/, "")}/-/commit/${commit.commit_sha}`
+  return commit.commit_url || null
 }
 
+// 从新老两种提交结构里提取展示用短标识。
+// 统一提交入口文案，不再向页面暴露 sha。
+function getCommitLabel(commit: UserProfileCommitItemDto) {
+  return commit.commit_url ? "查看提交" : "-"
+}
+
+// 把 AI 记录状态映射为中文。
 function aiStatusLabel(status: UserProfileAIRecordItemDto["status"]) {
   if (status === "fully_matched") return "已匹配"
   if (status === "partially_matched") return "部分匹配"
@@ -40,12 +55,19 @@ function aiStatusLabel(status: UserProfileAIRecordItemDto["status"]) {
   return status || "-"
 }
 
+// 统一展示 AI 工具名称。
 function formatAiTool(tool: string) {
   return tool || "-"
 }
 
+// 追加被截断提示，避免误解 diff 被完整展示。
 function truncatePreviewSuffix(truncated: boolean) {
   return truncated ? "\n...（已截断）" : ""
+}
+
+// 兼容后端新旧用户字段命名。
+function getUserAccountLabel(data: UserProfileDto) {
+  return data.user.git_name || data.user.username || "-"
 }
 
 export default function UserProfilePage() {
@@ -61,7 +83,7 @@ export default function UserProfilePage() {
   const initialMonth = monthParam ? Number(monthParam) : undefined
 
   const [page, setPage] = useState(1)
-  const [data, setData] = useState<import("@/lib/api").UserProfileDto | null>(null)
+  const [data, setData] = useState<UserProfileDto | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -98,7 +120,7 @@ export default function UserProfilePage() {
       })
       .catch((err: unknown) => {
         if (abortController.signal.aborted) return
-        const message = err instanceof Error ? err.message : "加载用户主页失败"
+        const message = err instanceof Error ? err.message : "加载用户详情失败"
         setError(message)
         setData(null)
       })
@@ -127,12 +149,16 @@ export default function UserProfilePage() {
               返回看板
             </Link>
           </Button>
-          <div className="text-sm text-muted-foreground">仓库范围：{repoId === -1 ? "全部仓库" : `Repo ${repoId}`}</div>
+          <div className="text-sm text-muted-foreground">
+            仓库范围：{repoId === -1 ? "全部仓库" : `Repo ${repoId}`}
+          </div>
         </div>
 
         {loading ? (
           <Card>
-            <CardContent className="py-12 text-center text-sm text-muted-foreground">正在加载用户主页...</CardContent>
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              正在加载用户详情...
+            </CardContent>
           </Card>
         ) : error ? (
           <Card>
@@ -140,18 +166,20 @@ export default function UserProfilePage() {
           </Card>
         ) : !data ? (
           <Card>
-            <CardContent className="py-12 text-center text-sm text-muted-foreground">暂无用户数据</CardContent>
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              暂无用户数据
+            </CardContent>
           </Card>
         ) : (
           <>
             <Card>
               <CardHeader>
-                <CardTitle>{data.user.name} 的主页</CardTitle>
+                <CardTitle>{data.user.name} 的详情</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-md border p-3">
-                  <div className="text-xs text-muted-foreground">用户</div>
-                  <div className="text-sm font-medium">{data.user.username}</div>
+                  <div className="text-xs text-muted-foreground">账号</div>
+                  <div className="text-sm font-medium">{getUserAccountLabel(data)}</div>
                 </div>
                 <div className="rounded-md border p-3">
                   <div className="text-xs text-muted-foreground">部门</div>
@@ -173,19 +201,25 @@ export default function UserProfilePage() {
                 <CardHeader>
                   <CardTitle className="text-base">总代码行</CardTitle>
                 </CardHeader>
-                <CardContent className="text-2xl font-semibold">{data.summary.total_lines.toLocaleString()}</CardContent>
+                <CardContent className="text-2xl font-semibold">
+                  {data.summary.total_lines.toLocaleString()}
+                </CardContent>
               </Card>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">AI 生成代码行</CardTitle>
+                  <CardTitle className="text-base">AI 代码行</CardTitle>
                 </CardHeader>
-                <CardContent className="text-2xl font-semibold text-accent">{data.summary.ai_lines.toLocaleString()}</CardContent>
+                <CardContent className="text-2xl font-semibold text-accent">
+                  {data.summary.ai_lines.toLocaleString()}
+                </CardContent>
               </Card>
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">AI 占比</CardTitle>
                 </CardHeader>
-                <CardContent className="text-2xl font-semibold">{data.summary.ai_ratio.toFixed(2)}%</CardContent>
+                <CardContent className="text-2xl font-semibold">
+                  {data.summary.ai_ratio.toFixed(2)}%
+                </CardContent>
               </Card>
             </div>
 
@@ -195,14 +229,16 @@ export default function UserProfilePage() {
               </CardHeader>
               <CardContent>
                 {data.recent_commits.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-muted-foreground">该时间范围暂无提交记录</div>
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    该时间范围内暂无提交记录
+                  </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
                           <th className="py-2">时间</th>
-                          <th className="py-2">SHA</th>
+                          <th className="py-2">提交</th>
                           <th className="py-2">仓库</th>
                           <th className="py-2">提交信息</th>
                           <th className="py-2 text-right">新增</th>
@@ -211,25 +247,41 @@ export default function UserProfilePage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {data.recent_commits.map((c) => {
-                          const commitUrl = buildCommitUrl(c)
+                        {data.recent_commits.map((commit) => {
+                          const commitUrl = buildCommitUrl(commit)
+                          const commitLabel = getCommitLabel(commit)
                           return (
-                            <tr key={c.id} className="border-b border-border/50 align-top">
-                              <td className="py-2 pr-4 whitespace-nowrap text-muted-foreground">{formatDateTime(c.committed_at)}</td>
+                            <tr key={commit.id} className="border-b border-border/50 align-top">
+                              <td className="whitespace-nowrap py-2 pr-4 text-muted-foreground">
+                                {formatDateTime(commit.committed_at)}
+                              </td>
                               <td className="py-2 pr-4 font-mono text-xs">
                                 {commitUrl ? (
-                                  <a href={commitUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                                    {c.commit_sha.slice(0, 8)}
+                                  <a
+                                    href={commitUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-primary hover:underline"
+                                  >
+                                    {commitLabel}
                                   </a>
                                 ) : (
-                                  c.commit_sha.slice(0, 8)
+                                  commitLabel
                                 )}
                               </td>
-                              <td className="py-2 pr-4 whitespace-nowrap">{c.repo_name}</td>
-                              <td className="py-2 pr-4 max-w-[520px] whitespace-pre-wrap break-words">{c.message || "-"}</td>
-                              <td className="py-2 pr-4 text-right font-mono text-green-600">+{c.additions.toLocaleString()}</td>
-                              <td className="py-2 pr-4 text-right font-mono">{c.ai_lines.toLocaleString()}</td>
-                              <td className="py-2 pr-4 text-right font-mono">{c.ai_ratio.toFixed(2)}%</td>
+                              <td className="whitespace-nowrap py-2 pr-4">{commit.repo_name}</td>
+                              <td className="max-w-[520px] whitespace-pre-wrap break-words py-2 pr-4">
+                                {commit.message || "-"}
+                              </td>
+                              <td className="py-2 pr-4 text-right font-mono text-green-600">
+                                +{commit.additions.toLocaleString()}
+                              </td>
+                              <td className="py-2 pr-4 text-right font-mono">
+                                {commit.ai_lines.toLocaleString()}
+                              </td>
+                              <td className="py-2 pr-4 text-right font-mono">
+                                {commit.ai_ratio.toFixed(2)}%
+                              </td>
                             </tr>
                           )
                         })}
@@ -243,10 +295,20 @@ export default function UserProfilePage() {
                     第 {data.pagination.page} / {Math.max(data.pagination.total_pages, 1)} 页（共 {data.pagination.total} 条）
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" disabled={!canPrev || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!canPrev || loading}
+                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                    >
                       上一页
                     </Button>
-                    <Button variant="outline" size="sm" disabled={!canNext || loading} onClick={() => setPage((p) => p + 1)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!canNext || loading}
+                      onClick={() => setPage((current) => current + 1)}
+                    >
                       下一页
                     </Button>
                   </div>
@@ -260,7 +322,9 @@ export default function UserProfilePage() {
               </CardHeader>
               <CardContent>
                 {data.recent_ai_records.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-muted-foreground">该时间范围暂无 AI 代码记录</div>
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    该时间范围内暂无 AI 代码记录
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {data.recent_ai_records.map((record) => (
@@ -289,10 +353,20 @@ export default function UserProfilePage() {
                     第 {data.ai_records_pagination.page} / {Math.max(data.ai_records_pagination.total_pages, 1)} 页（共 {data.ai_records_pagination.total} 条）
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" disabled={!canPrevAi || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!canPrevAi || loading}
+                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                    >
                       上一页
                     </Button>
-                    <Button variant="outline" size="sm" disabled={!canNextAi || loading} onClick={() => setPage((p) => p + 1)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!canNextAi || loading}
+                      onClick={() => setPage((current) => current + 1)}
+                    >
                       下一页
                     </Button>
                   </div>

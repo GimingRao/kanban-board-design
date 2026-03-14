@@ -3,7 +3,8 @@
  * 统一的 API 调用处理
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.2.121:8000'
+const DEFAULT_API_BASE_URL = 'http://localhost:8100'
+const FALLBACK_API_BASE_URL = 'http://192.168.2.121:8000'
 
 export interface ApiResponse<T> {
   success: boolean
@@ -20,14 +21,20 @@ export interface ApiError {
 }
 
 /**
- * 通用请求函数
+ * 解析可用 API 地址列表，优先使用环境变量，其次回退到历史服务器地址
+ */
+function getApiBaseUrls(): string[] {
+  const primaryBaseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/+$/, '')
+  return Array.from(new Set([primaryBaseUrl, FALLBACK_API_BASE_URL]))
+}
+
+/**
+ * 通用请求函数；如果首选地址连不上，则自动回退到备用服务器
  */
 async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-  const url = `${API_BASE_URL}${endpoint}`
-
   const config: RequestInit = {
     ...options,
     headers: {
@@ -36,33 +43,39 @@ async function request<T>(
     },
   }
 
-  try {
-    const response = await fetch(url, config)
+  let lastError: unknown = null
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      return {
-        success: false,
-        error: {
-          code: response.status.toString(),
-          message: errorData.message || response.statusText || '请求失败',
-        },
+  for (const apiBaseUrl of getApiBaseUrls()) {
+    try {
+      const response = await fetch(`${apiBaseUrl}${endpoint}`, config)
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        return {
+          success: false,
+          error: {
+            code: response.status.toString(),
+            message: errorData.message || response.statusText || '请求失败',
+          },
+        }
       }
-    }
 
-    const data = await response.json()
-    return {
-      success: true,
-      data: data.data || data,
+      const data = await response.json()
+      return {
+        success: true,
+        data: data.data || data,
+      }
+    } catch (error) {
+      lastError = error
     }
-  } catch (error) {
-    return {
-      success: false,
-      error: {
-        code: 'NETWORK_ERROR',
-        message: error instanceof Error ? error.message : '网络请求失败',
-      },
-    }
+  }
+
+  return {
+    success: false,
+    error: {
+      code: 'NETWORK_ERROR',
+      message: lastError instanceof Error ? lastError.message : '网络请求失败',
+    },
   }
 }
 

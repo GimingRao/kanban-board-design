@@ -4,7 +4,7 @@ import { useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Award, Crown, Medal } from "lucide-react"
 
-import { type LeaderboardDto } from "@/lib/api"
+import { type AIRatioLeaderboardDto } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import {
   Select,
@@ -16,13 +16,13 @@ import {
 
 interface LeaderboardProps {
   repoId: number
-  repoWebUrl?: string | null
-  data: LeaderboardDto | null
+  data: AIRatioLeaderboardDto | null
   loading?: boolean
   selectedMonth: string
   onMonthChange: (value: string) => void
 }
 
+// 根据排名展示不同图标。
 function getRankIcon(rank: number) {
   switch (rank) {
     case 1:
@@ -40,11 +40,13 @@ function getRankIcon(rank: number) {
   }
 }
 
+// 用姓名首字生成简单头像。
 function avatarFromName(name: string) {
   const trimmed = name.trim()
   return trimmed ? trimmed.slice(0, 1).toUpperCase() : "?"
 }
 
+// 生成近 12 个月筛选项。
 function getRecentMonths(count: number): Array<{ value: string; label: string }> {
   const result: Array<{ value: string; label: string }> = []
   const now = new Date()
@@ -62,6 +64,7 @@ function getRecentMonths(count: number): Array<{ value: string; label: string }>
   return result
 }
 
+// 解析月份字符串，方便拼装跳转参数。
 function parseMonth(value: string): { year: number; month: number } | null {
   const [y, m] = value.split("-")
   const year = Number(y)
@@ -71,6 +74,7 @@ function parseMonth(value: string): { year: number; month: number } | null {
   return { year, month }
 }
 
+// 仪表盘榜单，改为展示后端当前的 AI 用户排行榜。
 export function Leaderboard({
   repoId,
   data,
@@ -80,8 +84,6 @@ export function Leaderboard({
 }: LeaderboardProps) {
   const router = useRouter()
   const items = data?.items ?? []
-  const isGlobalRepo = repoId === -1
-  const isAllDepartmentsView = repoId === -1000
 
   const monthOptions = useMemo(() => {
     const recent = getRecentMonths(12)
@@ -90,16 +92,19 @@ export function Leaderboard({
     const parsed = parseMonth(selectedMonth)
     if (!parsed) return recent
     const extraDate = new Date(parsed.year, parsed.month - 1, 1)
-    const extra = {
-      value: selectedMonth,
-      label: extraDate.toLocaleDateString("zh-CN", {
-        year: "numeric",
-        month: "long",
-      }),
-    }
-    return [extra, ...recent]
+    return [
+      {
+        value: selectedMonth,
+        label: extraDate.toLocaleDateString("zh-CN", {
+          year: "numeric",
+          month: "long",
+        }),
+      },
+      ...recent,
+    ]
   }, [selectedMonth])
 
+  // 点击排行项后，跳转到用户详情页并保留筛选上下文。
   const openUserProfile = (userId: number) => {
     const month = parseMonth(selectedMonth)
     const params = new URLSearchParams({ repoId: String(repoId) })
@@ -115,11 +120,9 @@ export function Leaderboard({
       <div className="border-b border-border p-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-card-foreground">提交排行榜</h3>
+            <h3 className="text-lg font-semibold text-card-foreground">AI 用户排行榜</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {isGlobalRepo
-                ? "点击某一行进入该用户主页（所有仓库）"
-                : "点击某一行进入该用户主页"}
+              点击任意行可查看该用户在当前月份的详情
             </p>
           </div>
 
@@ -156,81 +159,74 @@ export function Leaderboard({
               <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 <th className="px-6 py-3">排名</th>
                 <th className="px-6 py-3">开发者</th>
-                {isAllDepartmentsView && <th className="px-6 py-3">部门</th>}
-                <th className="px-6 py-3 text-right">日均新增</th>
-                <th className="px-6 py-3 text-right">日均删除</th>
-                <th className="px-6 py-3 text-right">提交数</th>
-                <th className="px-6 py-3 text-right">新增</th>
-                <th className="px-6 py-3 text-right">删除</th>
+                <th className="px-6 py-3 text-right">AI 占比</th>
+                <th className="px-6 py-3 text-right">AI 代码行</th>
+                <th className="px-6 py-3 text-right">总代码行</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((dev, index) => {
+              {items.map((item, index) => {
+                const user = item.user
+                if (!user) return null
+
                 const handleKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
-                    openUserProfile(dev.user_id)
+                    openUserProfile(user.id)
                   }
                 }
+
                 return (
                   <tr
-                    key={dev.user_id}
-                    onClick={() => openUserProfile(dev.user_id)}
+                    key={user.id}
+                    onClick={() => openUserProfile(user.id)}
                     onKeyDown={handleKeyDown}
                     tabIndex={0}
                     role="button"
-                    aria-label={`进入 ${dev.name} 的主页`}
+                    aria-label={`进入 ${user.name} 的用户详情`}
                     className={cn(
                       "cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/60 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset",
                       index < 3 && "bg-secondary/20",
                     )}
                   >
                     <td className="px-6 py-4">
-                      <div className="flex w-8 items-center justify-center">{getRankIcon(dev.rank)}</div>
+                      <div className="flex w-8 items-center justify-center">{getRankIcon(item.rank)}</div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div
                           className={cn(
                             "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium",
-                            dev.rank === 1 && "bg-yellow-500/20 text-yellow-500",
-                            dev.rank === 2 && "bg-gray-400/20 text-gray-400",
-                            dev.rank === 3 && "bg-amber-600/20 text-amber-600",
-                            dev.rank > 3 && "bg-secondary text-secondary-foreground",
+                            item.rank === 1 && "bg-yellow-500/20 text-yellow-500",
+                            item.rank === 2 && "bg-gray-400/20 text-gray-400",
+                            item.rank === 3 && "bg-amber-600/20 text-amber-600",
+                            item.rank > 3 && "bg-secondary text-secondary-foreground",
                           )}
                         >
-                          {avatarFromName(dev.name)}
+                          {avatarFromName(user.name)}
                         </div>
-                        <span className="font-medium text-card-foreground">{dev.name}</span>
+                        <div className="min-w-0">
+                          <div className="font-medium text-card-foreground">{user.name}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {user.git_name || user.department?.name || "-"}
+                          </div>
+                        </div>
                       </div>
                     </td>
-                    {isAllDepartmentsView && (
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-muted-foreground">{dev.department_name ?? "未分配"}</span>
-                      </td>
-                    )}
                     <td className="px-6 py-4 text-right">
-                      <span className="font-mono text-sm text-card-foreground">
-                        {dev.added_per_workday.toLocaleString(undefined, {
-                          maximumFractionDigits: 2,
-                        })}
+                      <span className="font-mono text-sm text-accent">
+                        {(item.metrics.ai_ratio * 100).toFixed(1)}%
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="font-mono text-sm text-card-foreground">
-                        {dev.removed_per_workday.toLocaleString(undefined, {
-                          maximumFractionDigits: 2,
-                        })}
+                        {item.metrics.ai_lines.toLocaleString()}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <span className="font-mono text-sm text-card-foreground">{dev.commits.toLocaleString()}</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="font-mono text-sm text-green-500">+{dev.lines_added.toLocaleString()}</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="font-mono text-sm text-red-500">-{dev.lines_removed.toLocaleString()}</span>
+                      <span className="font-mono text-sm text-card-foreground">
+                        {item.metrics.total_lines.toLocaleString()}
+                      </span>
                     </td>
                   </tr>
                 )

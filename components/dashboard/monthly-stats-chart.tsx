@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts"
 
-import type { MonthlyMetricsDto } from "@/lib/api"
+import type { RepoTrendResponse } from "@/lib/api"
 import {
   Select,
   SelectContent,
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select"
 
 interface MonthlyStatsChartProps {
-  data: MonthlyMetricsDto | null
+  data: RepoTrendResponse | null
   loading?: boolean
   startMonth: string
   endMonth: string
@@ -32,6 +32,7 @@ interface MonthlyStatsChartProps {
   onMonthSelect?: (value: string) => void
 }
 
+// 生成最近月份选项，供趋势筛选使用。
 function getRecentMonths(count: number): Array<{ value: string; label: string }> {
   const result: Array<{ value: string; label: string }> = []
   const now = new Date()
@@ -47,6 +48,7 @@ function getRecentMonths(count: number): Array<{ value: string; label: string }>
   return result
 }
 
+// 趋势图组件，改为消费仓库趋势接口返回的数据点。
 export function MonthlyStatsChart({
   data,
   loading,
@@ -56,19 +58,19 @@ export function MonthlyStatsChart({
   onEndMonthChange,
   onMonthSelect,
 }: MonthlyStatsChartProps) {
-  const [mode, setMode] = useState<"both" | "added" | "removed">("both")
+  const [mode, setMode] = useState<"both" | "total" | "ai">("both")
 
   const chartData = useMemo(
     () =>
-      data?.series.map((item) => ({
-        month: item.month,
-        addedPerPersonPerWorkday:
+      data?.data_points.map((item) => ({
+        month: `${item.year}-${String(item.month).padStart(2, "0")}`,
+        totalLinesPerPersonPerWorkday:
           item.active_users > 0 && item.workdays > 0
-            ? item.total_added / (item.active_users * item.workdays)
+            ? item.total_lines / (item.active_users * item.workdays)
             : 0,
-        removedPerPersonPerWorkday:
+        aiLinesPerPersonPerWorkday:
           item.active_users > 0 && item.workdays > 0
-            ? item.total_deleted / (item.active_users * item.workdays)
+            ? item.ai_lines / (item.active_users * item.workdays)
             : 0,
       })) ?? [],
     [data],
@@ -76,22 +78,22 @@ export function MonthlyStatsChart({
 
   const monthOptions = useMemo(() => getRecentMonths(36), [])
 
-  const avgAddedPerPersonPerWorkday =
+  const avgTotalLinesPerPersonPerWorkday =
     chartData.length > 0
-      ? chartData.reduce((sum, item) => sum + item.addedPerPersonPerWorkday, 0) /
+      ? chartData.reduce((sum, item) => sum + item.totalLinesPerPersonPerWorkday, 0) /
         chartData.length
       : 0
-  const avgRemovedPerPersonPerWorkday =
+
+  const avgAiLinesPerPersonPerWorkday =
     chartData.length > 0
-      ? chartData.reduce(
-          (sum, item) => sum + item.removedPerPersonPerWorkday,
-          0,
-        ) / chartData.length
+      ? chartData.reduce((sum, item) => sum + item.aiLinesPerPersonPerWorkday, 0) /
+        chartData.length
       : 0
 
-  const handleBarClick = (data: unknown) => {
+  // 点击柱状图后，把对应月份回传给父组件作为榜单筛选。
+  const handleBarClick = (entry: unknown) => {
     if (!onMonthSelect) return
-    const month = (data as { payload?: { month?: string } })?.payload?.month
+    const month = (entry as { payload?: { month?: string } })?.payload?.month
     if (month) onMonthSelect(month)
   }
 
@@ -100,11 +102,9 @@ export function MonthlyStatsChart({
       <div className="mb-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-card-foreground">
-              每人每工作日行数
-            </h3>
+            <h3 className="text-lg font-semibold text-card-foreground">人均工作日代码行趋势</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              按月统计（增加/减少分开）
+              按月统计总代码行与 AI 代码行的人均工作日表现
             </p>
           </div>
 
@@ -141,8 +141,8 @@ export function MonthlyStatsChart({
             <div className="inline-flex rounded-md border border-border bg-secondary p-1 text-xs">
               {[
                 { key: "both", label: "全部" },
-                { key: "added", label: "仅增加" },
-                { key: "removed", label: "仅减少" },
+                { key: "total", label: "总代码行" },
+                { key: "ai", label: "AI 代码行" },
               ].map((item) => {
                 const active = mode === item.key
                 return (
@@ -176,15 +176,8 @@ export function MonthlyStatsChart({
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-            >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="oklch(0.9 0 0)"
-                vertical={false}
-              />
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.9 0 0)" vertical={false} />
               <XAxis
                 dataKey="month"
                 tick={{ fill: "oklch(0.45 0 0)", fontSize: 12 }}
@@ -197,10 +190,7 @@ export function MonthlyStatsChart({
                 axisLine={{ stroke: "oklch(0.85 0 0)" }}
               />
               <Tooltip
-                formatter={(value: number, name: string) => [
-                  Number(value).toFixed(2),
-                  name,
-                ]}
+                formatter={(value: number, name: string) => [Number(value).toFixed(2), name]}
                 contentStyle={{
                   backgroundColor: "oklch(1 0 0)",
                   border: "1px solid oklch(0.9 0 0)",
@@ -210,19 +200,19 @@ export function MonthlyStatsChart({
                 labelStyle={{ color: "oklch(0.45 0 0)" }}
               />
               <Legend wrapperStyle={{ paddingTop: "12px" }} />
-              {(mode === "both" || mode === "added") && (
+              {(mode === "both" || mode === "total") && (
                 <Bar
-                  dataKey="addedPerPersonPerWorkday"
-                  name="每人每工作日增加"
+                  dataKey="totalLinesPerPersonPerWorkday"
+                  name="人均工作日总代码行"
                   fill="oklch(0.6 0.18 160)"
                   radius={[4, 4, 0, 0]}
                   onClick={handleBarClick}
                 />
               )}
-              {(mode === "both" || mode === "removed") && (
+              {(mode === "both" || mode === "ai") && (
                 <Bar
-                  dataKey="removedPerPersonPerWorkday"
-                  name="每人每工作日减少"
+                  dataKey="aiLinesPerPersonPerWorkday"
+                  name="人均工作日 AI 代码行"
                   fill="oklch(0.62 0.2 30)"
                   radius={[4, 4, 0, 0]}
                   onClick={handleBarClick}
@@ -236,19 +226,19 @@ export function MonthlyStatsChart({
       <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4">
         <div className="w-full rounded-md border border-border/60 bg-secondary/30 p-3 text-center">
           <p className="text-2xl font-bold text-accent">
-            {avgAddedPerPersonPerWorkday.toLocaleString(undefined, {
+            {avgTotalLinesPerPersonPerWorkday.toLocaleString(undefined, {
               maximumFractionDigits: 2,
             })}
           </p>
-          <p className="text-xs text-muted-foreground">月均每人每工作日增加</p>
+          <p className="text-xs text-muted-foreground">月均人均工作日总代码行</p>
         </div>
         <div className="w-full rounded-md border border-border/60 bg-secondary/30 p-3 text-center">
           <p className="text-2xl font-bold text-chart-1">
-            {avgRemovedPerPersonPerWorkday.toLocaleString(undefined, {
+            {avgAiLinesPerPersonPerWorkday.toLocaleString(undefined, {
               maximumFractionDigits: 2,
             })}
           </p>
-          <p className="text-xs text-muted-foreground">月均每人每工作日减少</p>
+          <p className="text-xs text-muted-foreground">月均人均工作日 AI 代码行</p>
         </div>
       </div>
     </div>

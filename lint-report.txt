@@ -1,0 +1,272 @@
+
+> my-v0-project@0.1.0 lint D:\ronds_code_tool\ai_platform\kanban-board-design
+> eslint .
+
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ai-ratio-board\ai-ratio-board-content.tsx
+  53:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ai-ratio-board\ai-ratio-board-content.tsx:53:5
+  51 |
+  52 |     let cancelled = false
+> 53 |     setTotalsLoading(true)
+     |     ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  54 |
+  55 |     fetchRepoTrend({
+  56 |       start_year: parsed.year,  react-hooks/set-state-in-effect
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ai-ratio-board\commits-panel.tsx
+   43:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ai-ratio-board\commits-panel.tsx:43:7
+  41 |   useEffect(() => {
+  42 |     if (!selectedItem) {
+> 43 |       setData(null)
+     |       ^^^^^^^ Avoid calling setState() directly within an effect
+  44 |       return
+  45 |     }
+  46 |                                        react-hooks/set-state-in-effect
+  111:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ai-ratio-board\commits-panel.tsx:111:5
+  109 |
+  110 |     let cancelled = false
+> 111 |     setLoading(true)
+      |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  112 |     setError(null)
+  113 |
+  114 |     let fetchData: () => Promise<AICommitsDto>  react-hooks/set-state-in-effect
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ai-ratio-board\leaderboard-panel.tsx
+  104:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ai-ratio-board\leaderboard-panel.tsx:104:5
+  102 |
+  103 |   useEffect(() => {
+> 104 |     setPage(1)
+      |     ^^^^^^^ Avoid calling setState() directly within an effect
+  105 |   }, [selectedMonth, activeTab, departmentLevel, searchKeyword])
+  106 |
+  107 |   useEffect(() => {  react-hooks/set-state-in-effect
+  112:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ai-ratio-board\leaderboard-panel.tsx:112:5
+  110 |
+  111 |     let cancelled = false
+> 112 |     setLoading(true)
+      |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  113 |     setError(null)
+  114 |
+  115 |     const fetchData =                               react-hooks/set-state-in-effect
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ai-ratio-board\trend-chart-panel.tsx
+  56:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ai-ratio-board\trend-chart-panel.tsx:56:5
+  54 |
+  55 |     let cancelled = false
+> 56 |     setLoading(true)
+     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  57 |     setError(null)
+  58 |
+  59 |     let fetchTrend: () => Promise<any>  react-hooks/set-state-in-effect
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\dashboard\dashboard-content.tsx
+   75:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\dashboard\dashboard-content.tsx:75:5
+  73 |   useEffect(() => {
+  74 |     let cancelled = false
+> 75 |     setLoadingRepos(true)
+     |     ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  76 |     setError(null)
+  77 |
+  78 |     fetchRepos()                                                           react-hooks/set-state-in-effect
+  119:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\dashboard\dashboard-content.tsx:119:5
+  117 |
+  118 |     let cancelled = false
+> 119 |     setLoadingMonthly(true)
+      |     ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  120 |     setError(null)
+  121 |
+  122 |     fetchMonthlyMetrics(repoId, months, { year: anchorYear, month: anchorMonth })  react-hooks/set-state-in-effect
+  175:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\dashboard\dashboard-content.tsx:175:5
+  173 |
+  174 |     let cancelled = false
+> 175 |     setLoadingLeaderboard(true)
+      |     ^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  176 |     setError(null)
+  177 |
+  178 |     Promise.all([                                                          react-hooks/set-state-in-effect
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\dashboard\departments-users.tsx
+   65:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\dashboard\departments-users.tsx:65:5
+  63 |   useEffect(() => {
+  64 |     const currentIds = new Set(departments.map((dept) => dept.id))
+> 65 |     setExpandedDeptIds((prev) => {
+     |     ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  66 |       if (prev.size === 0) {
+  67 |         return new Set(currentIds)
+  68 |       }  react-hooks/set-state-in-effect
+  382:19  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     react/no-unescaped-entities
+  382:30  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     react/no-unescaped-entities
+  430:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\dashboard\departments-users.tsx:430:5
+  428 |   useEffect(() => {
+  429 |     if (!isOpen || !user) return
+> 430 |     setName(user.name ?? "")
+      |     ^^^^^^^ Avoid calling setState() directly within an effect
+  431 |     setEmail(user.email ?? "")
+  432 |     setWorkerId(user.worker_id ?? "")
+  433 |   }, [isOpen, user])                           react-hooks/set-state-in-effect
+  703:6   warning  React Hook useEffect has a missing dependency: 'selectedDeptId'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   react-hooks/exhaustive-deps
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\dashboard\leaderboard.tsx
+  143:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\dashboard\leaderboard.tsx:143:5
+  141 |
+  142 |     const abortController = new AbortController()
+> 143 |     setCommitLoading(true)
+      |     ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  144 |     setCommitError(null)
+  145 |
+  146 |     fetchUserCommits(repoId, activeUser.user_id, {  react-hooks/set-state-in-effect
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\mcp-catalog\mcp-catalog-card.tsx
+  52:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\mcp-catalog\mcp-catalog-detail-dialog.tsx
+  75:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\mcp-catalog\mcp-catalog.tsx
+  75:6  warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\mcp\mcp-card.tsx
+  59:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\mcp\mcp-detail-dialog.tsx
+  95:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\mcp\mcp-management.tsx
+  74:6  warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\mcp\service-card.tsx
+  58:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\skills\skill-card-enhanced.tsx
+   66:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  195:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\skills\skill-card.tsx
+  47:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\skills\skill-detail-dialog.tsx
+  70:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\skills\skills-management.tsx
+  61:6  warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\skills\skills-page.tsx
+  73:6  warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ui\sidebar.tsx
+  611:26  error  Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\components\ui\sidebar.tsx:611:26
+  609 |   // Random width between 50 to 90%.
+  610 |   const width = React.useMemo(() => {
+> 611 |     return `${Math.floor(Math.random() * 40) + 50}%`
+      |                          ^^^^^^^^^^^^^ Cannot call impure function
+  612 |   }, [])
+  613 |
+  614 |   return (  react-hooks/purity
+
+D:\ronds_code_tool\ai_platform\kanban-board-design\eslint.config.mjs
+  3:1  warning  Assign array to a variable before exporting as module default  import/no-anonymous-default-export
+
+✖ 30 problems (15 errors, 15 warnings)
+
+ ELIFECYCLE  Command failed with exit code 1.
