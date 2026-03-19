@@ -1,6 +1,8 @@
 FROM node:22-alpine AS base
 
 ARG ALPINE_MIRROR=mirrors.ustc.edu.cn
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+ENV npm_config_registry=${NPM_REGISTRY}
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -12,10 +14,10 @@ WORKDIR /app
 # Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
 RUN \
-  if [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm i --frozen-lockfile; \
-  elif [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-  elif [ -f package-lock.json ]; then npm ci; \
-  else echo "Lockfile not found." && npm install; \
+  if [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm config set registry ${NPM_REGISTRY} && pnpm i --frozen-lockfile; \
+  elif [ -f yarn.lock ]; then yarn config set registry ${NPM_REGISTRY} && yarn --frozen-lockfile; \
+  elif [ -f package-lock.json ]; then npm config set registry ${NPM_REGISTRY} && npm ci; \
+  else echo "Lockfile not found." && npm config set registry ${NPM_REGISTRY} && npm install; \
   fi
 
 # Rebuild the source code only when needed
