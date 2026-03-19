@@ -1,19 +1,27 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useEffect, useState } from "react"
+import { Award, Crown, Medal, Search, Users } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Award, Crown, Medal, Search } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import {
   fetchAIRatioDepartmentLeaderboard,
   fetchAIRatioUserLeaderboard,
   type AIRatioLeaderboardDto,
 } from "@/lib/api"
-import { DepartmentLevelSelector } from "./department-level-selector"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 
+// 解析年月筛选值，避免请求参数拼接重复。
 function parseMonth(value: string): { year: number; month: number } | null {
   const [y, m] = value.split("-")
   const year = Number(y)
@@ -27,11 +35,15 @@ function LeaderboardSkeleton() {
   return (
     <div className="space-y-3 p-4">
       {[...Array(5)].map((_, i) => (
-        <div key={i} className="flex items-center gap-4">
-          <Skeleton className="h-8 w-8" />
-          <Skeleton className="h-4 flex-1" />
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-4 w-20" />
+        <div key={i} className="rounded-2xl border border-border/60 bg-card/80 p-4">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-10 w-10 rounded-xl" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+            <Skeleton className="h-6 w-14" />
+          </div>
         </div>
       ))}
     </div>
@@ -48,18 +60,20 @@ export interface LeaderboardPanelProps {
 }
 
 type LeaderboardTab = "department" | "user"
+type DepartmentLevel = "level2" | "level3"
 
+// 根据排名生成不同视觉标识，强化前几名辨识度。
 function getRankIcon(rank: number) {
   switch (rank) {
     case 1:
-      return <Crown className="h-5 w-5 text-yellow-500" />
+      return <Crown className="h-5 w-5 text-amber-500" />
     case 2:
-      return <Medal className="h-5 w-5 text-gray-400" />
+      return <Medal className="h-5 w-5 text-slate-400" />
     case 3:
-      return <Award className="h-5 w-5 text-amber-600" />
+      return <Award className="h-5 w-5 text-orange-500" />
     default:
       return (
-        <span className="flex h-5 w-5 items-center justify-center text-sm text-muted-foreground">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-secondary/70 text-sm font-semibold text-muted-foreground">
           {rank}
         </span>
       )
@@ -71,7 +85,7 @@ export function LeaderboardPanel({
   onSelectedItemChange,
 }: LeaderboardPanelProps) {
   const [activeTab, setActiveTab] = useState<LeaderboardTab>("department")
-  const [departmentLevel, setDepartmentLevel] = useState<"level2" | "level3">("level2")
+  const [departmentLevel, setDepartmentLevel] = useState<DepartmentLevel>("level2")
   const [data, setData] = useState<AIRatioLeaderboardDto | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -79,20 +93,9 @@ export function LeaderboardPanel({
   const [searchKeyword, setSearchKeyword] = useState("")
   const [page, setPage] = useState(1)
   const [pageSize] = useState(20)
-  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
-  const handleWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
-    const el = scrollRef.current
-    if (!el) return
-
-    const canScroll = el.scrollHeight > el.clientHeight
-    if (!canScroll || e.deltaY === 0) return
-
-    el.scrollTop += e.deltaY
-    e.preventDefault()
-    e.stopPropagation()
-  }
-
+  // 对用户搜索做轻量防抖，减少重复请求。
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setSearchKeyword(searchInput.trim())
@@ -102,8 +105,11 @@ export function LeaderboardPanel({
 
   useEffect(() => {
     setPage(1)
-  }, [selectedMonth, activeTab, departmentLevel, searchKeyword])
+    setSelectedKey(null)
+    onSelectedItemChange(null)
+  }, [selectedMonth, activeTab, departmentLevel, searchKeyword, onSelectedItemChange])
 
+  // 根据当前筛选条件同步排行榜数据。
   useEffect(() => {
     const parsed = parseMonth(selectedMonth)
     if (!parsed) return
@@ -138,7 +144,7 @@ export function LeaderboardPanel({
       })
       .catch((err: unknown) => {
         if (cancelled) return
-        const message = err instanceof Error ? err.message : "加载失败"
+        const message = err instanceof Error ? err.message : "加载排行榜失败"
         setError(message)
         setData(null)
       })
@@ -156,108 +162,168 @@ export function LeaderboardPanel({
   const canNext = totalPages > 0 && page < totalPages
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
-      <div className="border-b border-border p-4">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LeaderboardTab)}>
-          <TabsList>
-            <TabsTrigger value="department">部门排行榜</TabsTrigger>
-            <TabsTrigger value="user">个人排行榜</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        {activeTab === "department" && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">层级筛选:</span>
-            <DepartmentLevelSelector value={departmentLevel} onChange={setDepartmentLevel} />
+    <section className="dashboard-panel flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="border-b border-border/70 px-4 pb-3 pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="hero-chip py-1">
+              <Users className="h-3.5 w-3.5 text-accent" />
+              排行榜
+            </div>
+            <h2 className="truncate text-lg font-semibold text-foreground">团队与个人排行</h2>
           </div>
-        )}
-        {activeTab === "user" && (
-          <div className="mt-3 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="搜索姓名或用户名"
-              className="pl-10"
-            />
-          </div>
-        )}
+
+          {activeTab === "department" ? (
+            <Select
+              value={departmentLevel}
+              onValueChange={(value) => setDepartmentLevel(value as DepartmentLevel)}
+            >
+              <SelectTrigger
+                size="sm"
+                className="h-10 rounded-full border-border/70 bg-card/85 px-4 text-sm shadow-none"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="level2">二级部门</SelectItem>
+                <SelectItem value="level3">三级部门</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : null}
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LeaderboardTab)}>
+            <TabsList className="h-11 rounded-full bg-secondary/80 p-1">
+              <TabsTrigger value="department" className="rounded-full px-4">
+                部门排行榜
+              </TabsTrigger>
+              <TabsTrigger value="user" className="rounded-full px-4">
+                个人排行榜
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {activeTab === "user" ? (
+            <div className="relative w-full max-w-[240px]">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="搜索姓名或用户名"
+                className="h-10 rounded-full border-border/70 bg-card/85 pl-11 shadow-none"
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">选择条目后，右侧同步展示提交明细。</p>
+          )}
+        </div>
       </div>
-      <div ref={scrollRef} onWheel={handleWheel} className="min-h-0 flex-1 overflow-auto p-4">
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {loading ? (
           <LeaderboardSkeleton />
         ) : error ? (
-          <div className="flex h-full items-center justify-center text-sm text-destructive">{error}</div>
+          <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-destructive/40 bg-destructive/5 text-sm text-destructive">
+            {error}
+          </div>
         ) : !data || data.items.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">暂无数据</div>
+          <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border bg-secondary/20 text-sm text-muted-foreground">
+            当前筛选下暂无排行榜数据
+          </div>
         ) : (
-          <table className="w-full">
-            <thead className="sticky top-0 bg-card">
-              <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <th className="px-4 py-3">排名</th>
-                <th className="px-4 py-3">{activeTab === "department" ? "部门" : "开发者"}</th>
-                <th className="px-4 py-3 text-right">总代码行</th>
-                <th className="px-4 py-3 text-right">AI 代码行</th>
-                <th className="px-4 py-3 text-right">AI 占比</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((item, index) => {
-                const name = activeTab === "department" ? item.department?.name : item.user?.name ?? "-"
-                const handleClick = () => {
-                  if (activeTab === "department" && item.department) {
-                    onSelectedItemChange({ type: "department", id: item.department.id, name: item.department.name })
-                  } else if (activeTab === "user" && item.user) {
-                    onSelectedItemChange({
-                      type: "user",
-                      id: item.user.id,
-                      name: item.user.name,
-                      departmentId: item.user.department?.id,
-                    })
-                  }
+          <div className="space-y-2.5">
+            {data.items.map((item, index) => {
+              const name = activeTab === "department" ? item.department?.name : item.user?.name ?? "-"
+              const detail = activeTab === "department" ? "查看部门提交详情" : "查看个人提交详情"
+              const cardKey = `${activeTab}-${item.rank}-${name}`
+              const isActive = selectedKey === cardKey
+
+              // 将列表项映射成右侧明细所需的选中对象。
+              const handleSelect = () => {
+                setSelectedKey(cardKey)
+                if (activeTab === "department" && item.department) {
+                  onSelectedItemChange({ type: "department", id: item.department.id, name: item.department.name })
+                } else if (activeTab === "user" && item.user) {
+                  onSelectedItemChange({
+                    type: "user",
+                    id: item.user.id,
+                    name: item.user.name,
+                    departmentId: item.user.department?.id,
+                  })
                 }
-                const handleKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    handleClick()
-                  }
+              }
+
+              // 支持键盘触发选中行为，保证列表可访问。
+              const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  handleSelect()
                 }
-                return (
-                  <tr
-                    key={`${item.rank}-${activeTab}-${name}`}
-                    onClick={handleClick}
-                    onKeyDown={handleKeyDown}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`查看 ${name} 的详情`}
-                    className={cn(
-                      "cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/60 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset",
-                      index < 3 && "bg-secondary/20",
-                    )}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex w-8 items-center justify-center">{getRankIcon(item.rank)}</div>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-card-foreground">{name}</td>
-                    <td className="px-4 py-3 text-right font-mono text-sm text-card-foreground">
-                      {item.metrics.total_lines.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-sm text-card-foreground">
-                      {item.metrics.ai_lines.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-sm text-accent">
-                      {(item.metrics.ai_ratio * 100).toFixed(1)}%
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+              }
+
+              return (
+                <div
+                  key={cardKey}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${detail}：${name}`}
+                  onClick={handleSelect}
+                  onKeyDown={handleKeyDown}
+                  className={cn(
+                    "rounded-[1.2rem] border border-border/70 bg-card/90 p-3.5 transition-all outline-none hover:-translate-y-0.5 hover:border-accent/35 hover:shadow-[0_18px_36px_-28px_rgba(15,23,42,0.55)] focus:ring-2 focus:ring-ring/50",
+                    index < 3 && "bg-gradient-to-r from-card via-card to-accent/5",
+                    isActive && "border-accent/60 ring-2 ring-accent/15",
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary/70">
+                      {getRankIcon(item.rank)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-semibold text-card-foreground">{name}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {activeTab === "department" ? "部门维度 AI 贡献排行" : "个人维度 AI 贡献排行"}
+                          </div>
+                        </div>
+                        <div className="rounded-full bg-accent/10 px-3 py-1 text-sm font-semibold text-accent">
+                          {(item.metrics.ai_ratio * 100).toFixed(1)}%
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <div className="rounded-2xl bg-secondary/45 px-3 py-2">
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">总行数</div>
+                          <div className="mt-1 text-sm font-semibold text-foreground">
+                            {item.metrics.total_lines.toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-secondary/45 px-3 py-2">
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">AI 行数</div>
+                          <div className="mt-1 text-sm font-semibold text-foreground">
+                            {item.metrics.ai_lines.toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-secondary/45 px-3 py-2">
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">排名</div>
+                          <div className="mt-1 text-sm font-semibold text-foreground">#{item.rank}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
+
       {data && data.pagination.total > 0 && (
-        <div className="flex items-center justify-between border-t border-border p-4">
-          <div className="text-xs text-muted-foreground">
-            第 {page} / {Math.max(totalPages, 1)} 页（共 {data.pagination.total} 条）
+        <div className="flex items-center justify-between border-t border-border/70 px-4 py-3">
+          <div className="text-sm text-muted-foreground">
+            第 {page} / {Math.max(totalPages, 1)} 页，共 {data.pagination.total} 条
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -266,6 +332,7 @@ export function LeaderboardPanel({
               size="sm"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={!canPrev || loading}
+              className="rounded-full border-border/70 bg-card/80 px-4"
             >
               上一页
             </Button>
@@ -275,12 +342,13 @@ export function LeaderboardPanel({
               size="sm"
               onClick={() => setPage((p) => (totalPages > 0 ? Math.min(totalPages, p + 1) : p + 1))}
               disabled={!canNext || loading}
+              className="rounded-full border-border/70 bg-card/80 px-4"
             >
               下一页
             </Button>
           </div>
         </div>
       )}
-    </div>
+    </section>
   )
 }

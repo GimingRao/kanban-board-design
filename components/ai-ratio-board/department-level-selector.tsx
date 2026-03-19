@@ -1,7 +1,5 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-
 type LevelOption = "level2" | "level3"
 
 interface DepartmentLevelSelectorProps {
@@ -21,7 +19,7 @@ export function DepartmentLevelSelector({
   disabled = false,
 }: DepartmentLevelSelectorProps) {
   return (
-    <div className="inline-flex rounded-md border border-border bg-secondary p-1 text-xs">
+    <div className="inline-flex rounded-full border border-border/70 bg-card/80 p-1 text-xs shadow-none">
       {options.map((option) => {
         const isActive = value === option.value
         return (
@@ -32,8 +30,8 @@ export function DepartmentLevelSelector({
             onClick={() => onChange(option.value)}
             className={
               isActive
-                ? "rounded px-3 py-1.5 font-medium text-foreground"
-                : "rounded px-3 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                ? "rounded-full bg-primary px-3 py-1.5 font-medium text-primary-foreground shadow-sm"
+                : "rounded-full px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
             }
           >
             {option.label}

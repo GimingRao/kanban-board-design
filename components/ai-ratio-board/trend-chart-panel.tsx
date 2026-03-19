@@ -1,18 +1,19 @@
 "use client"
 
-import { useMemo, useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
+  CartesianGrid,
   Line,
   LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Legend,
 } from "recharts"
+
+import { fetchDepartmentTrend, fetchRepoTrend, type DataPointMetric } from "@/lib/api"
+
 import type { SelectedItem } from "./leaderboard-panel"
-import { fetchRepoTrend, fetchDepartmentTrend, type DataPointMetric } from "@/lib/api"
 
 export interface TrendChartPanelProps {
   selectedItem: SelectedItem | null
@@ -24,6 +25,7 @@ export interface TrendChartPanelProps {
   onMonthSelect?: (month: string) => void
 }
 
+// 解析月筛选字符串，避免重复手写参数检查。
 function parseMonth(value: string): { year: number; month: number } | null {
   const [y, m] = value.split("-")
   const year = Number(y)
@@ -46,7 +48,7 @@ export function TrendChartPanel({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // 获取趋势数据
+  // 根据当前所选对象同步趋势数据。
   useEffect(() => {
     const start = parseMonth(startMonth)
     const end = parseMonth(endMonth)
@@ -56,43 +58,45 @@ export function TrendChartPanel({
     setLoading(true)
     setError(null)
 
-    let fetchTrend: () => Promise<any>
+    let fetchTrend: () => Promise<{ data_points: DataPointMetric[] }>
 
     if (selectedItem?.type === "department") {
-      fetchTrend = () => fetchDepartmentTrend({
-        department_id: selectedItem.id,
-        start_year: start.year,
-        start_month: start.month,
-        end_year: end.year,
-        end_month: end.month,
-      })
+      fetchTrend = () =>
+        fetchDepartmentTrend({
+          department_id: selectedItem.id,
+          start_year: start.year,
+          start_month: start.month,
+          end_year: end.year,
+          end_month: end.month,
+        })
     } else if (selectedItem?.type === "user") {
-      // 用户趋势：通过部门查询（如果用户有部门则查询该部门，否则查所有仓库）
       const userDeptId = selectedItem.departmentId ?? -1
       if (userDeptId !== -1) {
-        fetchTrend = () => fetchDepartmentTrend({
-          department_id: userDeptId,
-          start_year: start.year,
-          start_month: start.month,
-          end_year: end.year,
-          end_month: end.month,
-        })
+        fetchTrend = () =>
+          fetchDepartmentTrend({
+            department_id: userDeptId,
+            start_year: start.year,
+            start_month: start.month,
+            end_year: end.year,
+            end_month: end.month,
+          })
       } else {
-        // 无部门用户，查询所有仓库趋势
-        fetchTrend = () => fetchRepoTrend({
-          start_year: start.year,
-          start_month: start.month,
-          end_year: end.year,
-          end_month: end.month,
-        })
+        fetchTrend = () =>
+          fetchRepoTrend({
+            start_year: start.year,
+            start_month: start.month,
+            end_year: end.year,
+            end_month: end.month,
+          })
       }
     } else {
-      fetchTrend = () => fetchRepoTrend({
-        start_year: start.year,
-        start_month: start.month,
-        end_year: end.year,
-        end_month: end.month,
-      })
+      fetchTrend = () =>
+        fetchRepoTrend({
+          start_year: start.year,
+          start_month: start.month,
+          end_year: end.year,
+          end_month: end.month,
+        })
     }
 
     fetchTrend()
@@ -115,7 +119,7 @@ export function TrendChartPanel({
     }
   }, [selectedItem, startMonth, endMonth])
 
-  // 转换为图表数据格式
+  // 转换为图表可直接消费的结构。
   const chartData = useMemo(() => {
     return dataPoints.map((dp) => ({
       month: `${dp.year}-${String(dp.month).padStart(2, "0")}`,
@@ -125,6 +129,7 @@ export function TrendChartPanel({
     }))
   }, [dataPoints])
 
+  // 基于全区间数据计算一个更稳定的平均值提示。
   const avgRatio = useMemo(() => {
     if (dataPoints.length === 0) return 0
     const totalLines = dataPoints.reduce((sum, dp) => sum + dp.total_lines, 0)
@@ -133,86 +138,112 @@ export function TrendChartPanel({
   }, [dataPoints])
 
   return (
-    <div className="flex min-h-[280px] flex-col rounded-lg border border-border bg-card p-4">
-      <div className="mb-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+      <div className="rounded-[1.35rem] border border-border/70 bg-card/90 p-4">
+        <div className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-card-foreground">
-              AI 代码占比趋势（按月）
-            </h3>
+            <h3 className="text-lg font-semibold text-card-foreground">AI 占比趋势</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {selectedItem ? `${selectedItem.name} 的月度趋势` : "所有仓库的月度趋势"}
+              {selectedItem ? `${selectedItem.name} 的月度趋势` : "当前展示全局月份趋势"}
             </p>
           </div>
+          <div className="rounded-2xl border border-border/70 bg-secondary/35 px-3 py-2 text-sm text-muted-foreground">
+            当前对齐月份：{selectedMonth}
+          </div>
+        </div>
+
+        <div className="mt-4 h-[260px]">
+          {loading ? (
+            <div className="flex h-full w-full items-center justify-center rounded-2xl bg-secondary/20 text-sm text-muted-foreground">
+              正在加载趋势...
+            </div>
+          ) : error ? (
+            <div className="flex h-full w-full items-center justify-center rounded-2xl bg-destructive/5 text-sm text-destructive">
+              {error}
+            </div>
+          ) : chartData.length === 0 ? (
+            <div className="flex h-full w-full items-center justify-center rounded-2xl bg-secondary/20 text-sm text-muted-foreground">
+              当前区间暂无趋势数据
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 12, right: 8, left: -16, bottom: 8 }}>
+                <CartesianGrid
+                  strokeDasharray="4 4"
+                  stroke="color-mix(in oklch, var(--border) 88%, white)"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fill: "oklch(0.52 0.02 248)", fontSize: 12 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "oklch(0.52 0.02 248)", fontSize: 12 }}
+                  tickLine={false}
+                  axisLine={false}
+                  domain={[0, 100]}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <Tooltip
+                  formatter={(value: number, _name, item) => [
+                    `${value.toFixed(1)}%`,
+                    `${item.payload.ai_lines.toLocaleString()} / ${item.payload.total_lines.toLocaleString()} 行`,
+                  ]}
+                  labelFormatter={(label) => `月份：${label}`}
+                  contentStyle={{
+                    backgroundColor: "rgba(255,255,255,0.96)",
+                    border: "1px solid rgba(201,208,220,0.7)",
+                    borderRadius: "18px",
+                    color: "oklch(0.24 0.02 248)",
+                    boxShadow: "0 20px 40px -28px rgba(15,23,42,0.42)",
+                  }}
+                  labelStyle={{ color: "oklch(0.52 0.02 248)" }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="ai_ratio"
+                  stroke="oklch(0.65 0.16 196)"
+                  strokeWidth={3}
+                  dot={{ fill: "oklch(0.65 0.16 196)", r: 4, strokeWidth: 0 }}
+                  activeDot={{ r: 6, strokeWidth: 0 }}
+                  onClick={onMonthSelect ? (data: { month: string }) => onMonthSelect(data.month) : undefined}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
-      <div className="flex min-h-[200px] flex-1">
-        {loading ? (
-          <div className="flex w-full items-center justify-center text-sm text-muted-foreground">
-            加载中...
-          </div>
-        ) : error ? (
-          <div className="flex w-full items-center justify-center text-sm text-destructive">
-            {error}
-          </div>
-        ) : chartData.length === 0 ? (
-          <div className="flex w-full items-center justify-center text-sm text-muted-foreground">
-            暂无趋势数据
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-            >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="oklch(0.9 0 0)"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="month"
-                tick={{ fill: "oklch(0.45 0 0)", fontSize: 12 }}
-                tickLine={{ stroke: "oklch(0.85 0 0)" }}
-                axisLine={{ stroke: "oklch(0.85 0 0)" }}
-              />
-              <YAxis
-                tick={{ fill: "oklch(0.45 0 0)", fontSize: 12 }}
-                tickLine={{ stroke: "oklch(0.85 0 0)" }}
-                axisLine={{ stroke: "oklch(0.85 0 0)" }}
-                domain={[0, 100]}
-                tickFormatter={(value) => `${value}%`}
-              />
-              <Tooltip
-                formatter={(value: number) => [`${value.toFixed(1)}%`, "AI 占比"]}
-                contentStyle={{
-                  backgroundColor: "oklch(1 0 0)",
-                  border: "1px solid oklch(0.9 0 0)",
-                  borderRadius: "8px",
-                  color: "oklch(0.15 0 0)",
-                }}
-                labelStyle={{ color: "oklch(0.45 0 0)" }}
-              />
-              <Line
-                type="monotone"
-                dataKey="ai_ratio"
-                stroke="oklch(0.6 0.18 160)"
-                strokeWidth={2}
-                dot={{ fill: "oklch(0.6 0.18 160)", r: 4 }}
-                activeDot={{ r: 6 }}
-                onClick={onMonthSelect ? (data: any) => onMonthSelect(data.month) : undefined}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+        <div className="rounded-[1.35rem] border border-border/70 bg-card/90 p-4">
+          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">开始月份</div>
+          <input
+            type="month"
+            value={startMonth}
+            onChange={(e) => onStartMonthChange(e.target.value)}
+            className="mt-3 h-11 w-full rounded-2xl border border-border/70 bg-card px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/40"
+          />
+        </div>
 
-      <div className="mt-4 rounded-md border border-border/60 bg-secondary/30 p-3 text-center">
-        <p className="text-2xl font-bold text-accent">
-          {avgRatio.toFixed(1)}%
-        </p>
-        <p className="text-xs text-muted-foreground">平均 AI 占比</p>
+        <div className="rounded-[1.35rem] border border-border/70 bg-card/90 p-4">
+          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">结束月份</div>
+          <input
+            type="month"
+            value={endMonth}
+            onChange={(e) => onEndMonthChange(e.target.value)}
+            className="mt-3 h-11 w-full rounded-2xl border border-border/70 bg-card px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/40"
+          />
+        </div>
+
+        <div className="rounded-[1.35rem] border border-border/70 bg-secondary/35 p-5">
+          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">区间平均 AI 占比</div>
+          <div className="mt-3 text-4xl font-semibold tracking-tight text-accent">{avgRatio.toFixed(1)}%</div>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            适合用来观察整体趋势，而不是单月波动。
+          </p>
+        </div>
       </div>
     </div>
   )

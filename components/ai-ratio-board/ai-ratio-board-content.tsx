@@ -1,20 +1,20 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
+import { GitCommitHorizontal, LineChart } from "lucide-react"
+
 import {
   AiRatioBoardHeader,
+  CommitsPanel,
   LeaderboardPanel,
   TrendChartPanel,
-  CommitsPanel,
 } from "@/components/ai-ratio-board"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import type { SelectedItem } from "@/components/ai-ratio-board/leaderboard-panel"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { fetchRepoTrend, type SummaryMetrics } from "@/lib/api"
 
+import type { SelectedItem } from "@/components/ai-ratio-board/leaderboard-panel"
+
+// 获取当前月份，作为页面筛选的默认值。
 function getCurrentMonth(): string {
   const d = new Date()
   const y = d.getFullYear()
@@ -22,6 +22,7 @@ function getCurrentMonth(): string {
   return `${y}-${m}`
 }
 
+// 按月份偏移，生成趋势图的起止月份。
 function shiftMonth(value: string, delta: number): string {
   const [y, m] = value.split("-")
   const year = Number(y)
@@ -32,6 +33,7 @@ function shiftMonth(value: string, delta: number): string {
   return `${newY}-${newM}`
 }
 
+// 解析年月字符串，供接口参数复用。
 function parseMonth(value: string): { year: number; month: number } | null {
   const [y, m] = value.split("-")
   const year = Number(y)
@@ -48,9 +50,9 @@ export function AiRatioBoardContent() {
   const [selectedLeaderboardItem, setSelectedLeaderboardItem] = useState<SelectedItem | null>(null)
   const [totals, setTotals] = useState<SummaryMetrics | null>(null)
   const [totalsLoading, setTotalsLoading] = useState(false)
-  const [showTrend, setShowTrend] = useState(false)
+  const [detailTab, setDetailTab] = useState<"commits" | "trend">("commits")
 
-  // 获取当月 totals 数据
+  // 根据当前月份同步顶部概览指标。
   useEffect(() => {
     const parsed = parseMonth(selectedMonth)
     if (!parsed) return
@@ -83,51 +85,68 @@ export function AiRatioBoardContent() {
   }, [selectedMonth])
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden pb-4">
       <AiRatioBoardHeader
-        totals={totals ? {
-          total_lines: totals.total_lines,
-          ai_lines: totals.ai_lines,
-          ai_ratio: totals.ai_ratio / 100, // 转换为小数
-        } : null}
+        totals={
+          totals
+            ? {
+                total_lines: totals.total_lines,
+                ai_lines: totals.ai_lines,
+                ai_ratio: totals.ai_ratio / 100,
+              }
+            : null
+        }
         selectedMonth={selectedMonth}
         onMonthChange={setSelectedMonth}
         loading={totalsLoading}
       />
 
-      <main className="flex-1 overflow-hidden p-4 sm:p-6">
-        <div className="grid h-full min-h-0 grid-cols-1 gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-[35%_65%]">
-          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <main className="flex-1 overflow-hidden px-4 pb-2 sm:px-6">
+        <div className="grid h-full min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(340px,0.88fr)_minmax(0,1.42fr)]">
+          <div className="flex min-h-0 flex-col">
             <LeaderboardPanel
               selectedMonth={selectedMonth}
               onSelectedItemChange={setSelectedLeaderboardItem}
             />
           </div>
 
-          <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
-            <CommitsPanel
-              selectedItem={selectedLeaderboardItem}
-              selectedMonth={selectedMonth}
-            />
+          <Tabs
+            value={detailTab}
+            onValueChange={(value) => setDetailTab(value as "commits" | "trend")}
+            className="dashboard-panel flex h-full min-h-0 flex-col overflow-hidden p-3"
+          >
+            <div className="flex items-center justify-between gap-3 px-1 pb-1">
+              <div className="text-lg font-semibold text-foreground">详情工作区</div>
+              <TabsList className="h-11 rounded-full bg-secondary/80 p-1">
+                <TabsTrigger value="commits" className="rounded-full px-4">
+                  <GitCommitHorizontal className="h-4 w-4" />
+                  变更明细
+                </TabsTrigger>
+                <TabsTrigger value="trend" className="rounded-full px-4">
+                  <LineChart className="h-4 w-4" />
+                  趋势分析
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-            <Collapsible open={showTrend} onOpenChange={setShowTrend}>
-              <CollapsibleTrigger className="w-full rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary/60">
-                {showTrend ? "收起趋势图" : "更多（展开趋势图）"}
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-3">
-                {showTrend ? (
-                  <TrendChartPanel
-                    selectedItem={selectedLeaderboardItem}
-                    selectedMonth={selectedMonth}
-                    startMonth={chartStartMonth}
-                    endMonth={chartEndMonth}
-                    onStartMonthChange={setChartStartMonth}
-                    onEndMonthChange={setChartEndMonth}
-                  />
-                ) : null}
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
+            <TabsContent value="commits" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <CommitsPanel
+                selectedItem={selectedLeaderboardItem}
+                selectedMonth={selectedMonth}
+              />
+            </TabsContent>
+
+            <TabsContent value="trend" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <TrendChartPanel
+                selectedItem={selectedLeaderboardItem}
+                selectedMonth={selectedMonth}
+                startMonth={chartStartMonth}
+                endMonth={chartEndMonth}
+                onStartMonthChange={setChartStartMonth}
+                onEndMonthChange={setChartEndMonth}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
     </div>
