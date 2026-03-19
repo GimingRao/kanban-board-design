@@ -1,22 +1,26 @@
 "use client"
 
-import { useEffect, useMemo, useState, useRef, useCallback } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+
 import { cn } from "@/lib/utils"
 import {
-  fetchDepartmentsTree,
-  fetchDepartmentUsers,
+  batchUpdateUsersDepartment,
+  bindUserWorkerProfile,
   createDepartment,
   deleteDepartment,
-  batchUpdateUsersDepartment,
-  updateUser,
+  fetchDepartmentsTree,
+  fetchDepartmentUsers,
+  fetchWorkerProfiles,
   type DepartmentNodeDto,
   type DepartmentUserDto,
+  type WorkerProfileDto,
 } from "@/lib/api"
 
-// 未分配部门的特殊 ID
+// 未分配部门的特殊 ID。
 const UNASSIGNED_DEPT_ID = -1
 
+// 构建部门树的父子映射，供左侧树形菜单复用。
 function buildTree(nodes: DepartmentNodeDto[]) {
   const childrenMap = new Map<number | null, DepartmentNodeDto[]>()
   nodes.forEach((node) => {
@@ -27,7 +31,7 @@ function buildTree(nodes: DepartmentNodeDto[]) {
   return childrenMap
 }
 
-// 计算菜单位置，确保不超出视口
+// 计算右键菜单位置，避免菜单超出窗口边界。
 function calculateMenuPosition(x: number, y: number): { left: number; top: number } {
   const menuWidth = 120
   const menuHeight = 80
@@ -37,6 +41,12 @@ function calculateMenuPosition(x: number, y: number): { left: number; top: numbe
   const top = Math.min(y, window.innerHeight - menuHeight - padding)
 
   return { left: Math.max(padding, left), top: Math.max(padding, top) }
+}
+
+// 把部门路径数组渲染为可读文本。
+function formatDepartmentPath(path: string[]) {
+  if (path.length === 0) return "未配置部门路径"
+  return path.join(" / ")
 }
 
 function DepartmentTree({
@@ -85,6 +95,7 @@ function DepartmentTree({
     })
   }, [departments])
 
+  // 切换树节点展开状态。
   const toggleExpand = (deptId: number) => {
     setExpandedDeptIds((prev) => {
       const next = new Set(prev)
@@ -97,6 +108,7 @@ function DepartmentTree({
     })
   }
 
+  // 打开部门节点右键菜单。
   const handleContextMenu = (e: React.MouseEvent, dept: DepartmentNodeDto) => {
     e.preventDefault()
     e.stopPropagation()
@@ -109,9 +121,10 @@ function DepartmentTree({
   useEffect(() => {
     const handleClick = () => handleCloseMenu()
     window.addEventListener("click", handleClick, { capture: true })
-    return () => window.removeEventListener("click", handleClick, { capture: true } as any)
+    return () => window.removeEventListener("click", handleClick, { capture: true } as EventListenerOptions)
   }, [handleCloseMenu])
 
+  // 递归渲染部门树分支。
   const renderBranch = (parentId: number | null, depth: number) => {
     const children = tree.get(parentId)
     if (!children) return null
@@ -129,7 +142,7 @@ function DepartmentTree({
               depth === 0 ? "font-semibold" : "font-normal",
               selectedId === dept.id
                 ? "bg-accent text-accent-foreground"
-                : "text-foreground hover:bg-muted"
+                : "text-foreground hover:bg-muted",
             )}
             style={{ paddingLeft: 12 + depth * 16 }}
           >
@@ -202,46 +215,85 @@ function DepartmentTree({
 
 function UserCard({
   user,
+  onOpenProfile,
+}: {
+  user: DepartmentUserDto
+  onOpenProfile: (user: DepartmentUserDto) => void
+}) {
+  return (
+    <div
+      className="rounded-lg border border-border bg-card px-4 py-3 transition hover:border-primary/30 hover:bg-muted/30"
+      onDoubleClick={() => onOpenProfile(user)}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={() => onOpenProfile(user)}
+            className="truncate text-left text-sm font-semibold text-foreground hover:text-primary hover:underline"
+          >
+            {user.name}
+          </button>
+          <p className="mt-1 text-xs text-muted-foreground">工号：{user.worker_id || "未绑定"}</p>
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">{user.email || "未填写邮箱"}</p>
+    </div>
+  )
+}
+
+function MatchUserCard({
+  user,
   selected,
   onSelect,
-  onEdit,
+  onMatch,
   onOpenProfile,
 }: {
   user: DepartmentUserDto
   selected: boolean
   onSelect: (userId: number) => void
-  onEdit: (user: DepartmentUserDto) => void
+  onMatch: (user: DepartmentUserDto) => void
   onOpenProfile: (user: DepartmentUserDto) => void
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            id={`user-select-${user.id}`}
-            checked={selected}
-            onChange={() => onSelect(user.id)}
-            className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring focus:ring-offset-0"
-            aria-label={`选择 ${user.name}`}
-          />
-          <div>
+    <div
+      className="rounded-lg border border-border bg-card px-4 py-3 transition hover:border-primary/30 hover:bg-muted/30"
+      onDoubleClick={() => onOpenProfile(user)}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            className="pt-0.5"
+          >
+            <input
+              type="checkbox"
+              id={`user-select-${user.id}`}
+              checked={selected}
+              onChange={() => onSelect(user.id)}
+              className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring focus:ring-offset-0"
+              aria-label={`选择 ${user.name}`}
+            />
+          </div>
+          <div className="min-w-0">
             <button
               type="button"
               onClick={() => onOpenProfile(user)}
-              className="text-sm font-semibold text-foreground hover:text-primary hover:underline"
+              className="truncate text-left text-sm font-semibold text-foreground hover:text-primary hover:underline"
             >
               {user.name}
             </button>
-            <p className="text-xs text-muted-foreground">工号：{user.worker_id || "未填写"}</p>
+            <p className="mt-1 text-xs text-amber-600">工号：未绑定</p>
           </div>
         </div>
         <button
           type="button"
-          onClick={() => onEdit(user)}
-          className="rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-muted"
+          onClick={() => onMatch(user)}
+          onDoubleClick={(e) => e.stopPropagation()}
+          className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-muted"
         >
-          编辑
+          匹配工号
         </button>
       </div>
       <p className="mt-2 pl-7 text-xs text-muted-foreground">{user.email || "未填写邮箱"}</p>
@@ -261,16 +313,16 @@ function AddDepartmentDialog({
   parentName?: string
 }) {
   const [name, setName] = useState("")
-  const dialogRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      setName("")
+      return
+    }
 
-    // 聚焦到输入框
     inputRef.current?.focus()
 
-    // ESC 键关闭
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose()
@@ -280,7 +332,7 @@ function AddDepartmentDialog({
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [isOpen, onClose])
 
-  // 点击遮罩关闭
+  // 点击遮罩时关闭弹窗。
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose()
@@ -297,10 +349,7 @@ function AddDepartmentDialog({
       aria-modal="true"
       aria-labelledby="dialog-title"
     >
-      <div
-        ref={dialogRef}
-        className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg"
-      >
+      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg">
         <h3 id="dialog-title" className="text-lg font-semibold text-foreground">
           {parentName ? `添加子部门到 "${parentName}"` : "添加根部门"}
         </h3>
@@ -355,10 +404,8 @@ function DeleteConfirmDialog({
   useEffect(() => {
     if (!isOpen) return
 
-    // 聚焦到确认按钮
     confirmButtonRef.current?.focus()
 
-    // ESC 键关闭
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose()
@@ -368,7 +415,7 @@ function DeleteConfirmDialog({
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [isOpen, onClose])
 
-  // 点击遮罩关闭
+  // 点击遮罩时关闭弹窗。
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose()
@@ -386,13 +433,11 @@ function DeleteConfirmDialog({
       aria-labelledby="delete-dialog-title"
     >
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg">
-        <h3 id="delete-dialog-title" className="text-lg font-semibold text-foreground">确认删除</h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          确定要删除部门 "{deptName}" 吗？
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          如果该部门下有子部门或用户，删除将失败。
-        </p>
+        <h3 id="delete-dialog-title" className="text-lg font-semibold text-foreground">
+          确认删除
+        </h3>
+        <p className="mt-2 text-sm text-muted-foreground">确定要删除部门 "{deptName}" 吗？</p>
+        <p className="mt-1 text-xs text-muted-foreground">如果该部门下有子部门或用户，删除将失败。</p>
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
@@ -415,45 +460,101 @@ function DeleteConfirmDialog({
   )
 }
 
-function EditUserDialog({
+function MatchWorkerProfileDialog({
   isOpen,
   user,
   saving,
-  error,
+  saveError,
   onClose,
   onConfirm,
 }: {
   isOpen: boolean
   user: DepartmentUserDto | null
   saving: boolean
-  error: string | null
+  saveError: string | null
   onClose: () => void
-  onConfirm: (payload: { name: string; email: string; worker_id: string }) => void
+  onConfirm: (workerId: string) => void
 }) {
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [workerId, setWorkerId] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState("")
+  const [selectedProfile, setSelectedProfile] = useState<WorkerProfileDto | null>(null)
+  const [results, setResults] = useState<WorkerProfileDto[]>([])
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isOpen || !user) return
-    setName(user.name ?? "")
-    setEmail(user.email ?? "")
-    setWorkerId(user.worker_id ?? "")
-  }, [isOpen, user])
+    if (!isOpen) {
+      setQuery("")
+      setSelectedProfile(null)
+      setResults([])
+      setSearchError(null)
+      return
+    }
 
-  useEffect(() => {
-    if (!isOpen) return
+    inputRef.current?.focus()
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !saving) {
         onClose()
       }
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, saving])
 
+  useEffect(() => {
+    if (!isOpen) return
+
+    const trimmedQuery = query.trim()
+    if (!trimmedQuery) {
+      setResults([])
+      setSearching(false)
+      setSearchError(null)
+      return
+    }
+
+    const abortController = new AbortController()
+    const timer = window.setTimeout(() => {
+      setSearching(true)
+      setSearchError(null)
+
+      fetchWorkerProfiles(
+        {
+          query: trimmedQuery,
+          limit: 20,
+        },
+        abortController.signal,
+      )
+        .then((items) => {
+          if (abortController.signal.aborted) return
+          setResults(items)
+          setSelectedProfile((previous) => {
+            if (!previous) return previous
+            return items.find((item) => item.worker_id === previous.worker_id) ?? null
+          })
+        })
+        .catch((error: unknown) => {
+          if (abortController.signal.aborted) return
+          const message = error instanceof Error ? error.message : "搜索工号目录失败"
+          setSearchError(message)
+          setResults([])
+        })
+        .finally(() => {
+          if (!abortController.signal.aborted) {
+            setSearching(false)
+          }
+        })
+    }, 250)
+
+    return () => {
+      abortController.abort()
+      window.clearTimeout(timer)
+    }
+  }, [isOpen, query])
+
+  // 点击遮罩时关闭弹窗。
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
+    if (e.target === e.currentTarget && !saving) {
       onClose()
     }
   }
@@ -466,44 +567,87 @@ function EditUserDialog({
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="edit-user-dialog-title"
+      aria-labelledby="match-worker-dialog-title"
     >
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg">
-        <h3 id="edit-user-dialog-title" className="text-lg font-semibold text-foreground">
-          编辑用户
+      <div className="w-full max-w-3xl rounded-xl border border-border bg-card p-6 shadow-lg">
+        <h3 id="match-worker-dialog-title" className="text-lg font-semibold text-foreground">
+          匹配工号
         </h3>
-        {error && (
-          <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          为 {user.name} 搜索并绑定有效工号。可按工号、姓名或邮箱检索。
+        </p>
+
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="输入工号、姓名或邮箱"
+          className="mt-4 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+
+        {saveError && (
+          <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {saveError}
+          </p>
         )}
-        <div className="mt-4 space-y-3">
-          <label className="block text-sm text-foreground">
-            姓名
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </label>
-          <label className="block text-sm text-foreground">
-            邮箱
-            <input
-              type="text"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </label>
-          <label className="block text-sm text-foreground">
-            工号
-            <input
-              type="text"
-              value={workerId}
-              onChange={(e) => setWorkerId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </label>
+        {searchError && (
+          <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {searchError}
+          </p>
+        )}
+
+        <div className="mt-4 min-h-[320px] rounded-xl border border-border bg-background/50">
+          {!query.trim() ? (
+            <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
+              输入关键词后显示工号目录候选项
+            </div>
+          ) : searching ? (
+            <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
+              正在搜索工号目录...
+            </div>
+          ) : results.length === 0 ? (
+            <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
+              未找到匹配的工号档案
+            </div>
+          ) : (
+            <div className="max-h-[320px] overflow-y-auto p-2">
+              <div className="space-y-2">
+                {results.map((profile) => {
+                  const isSelected = selectedProfile?.worker_id === profile.worker_id
+
+                  return (
+                    <button
+                      key={profile.worker_id}
+                      type="button"
+                      onClick={() => setSelectedProfile(profile)}
+                      className={cn(
+                        "w-full rounded-lg border px-4 py-3 text-left transition",
+                        isSelected
+                          ? "border-primary bg-primary/5 shadow-sm"
+                          : "border-transparent bg-background hover:bg-muted/60",
+                      )}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-foreground">{profile.name}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">{profile.email || "未填写邮箱"}</div>
+                        </div>
+                        <div className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-foreground">
+                          工号：{profile.worker_id}
+                        </div>
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        部门路径：{formatDepartmentPath(profile.department_path)}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
+
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
@@ -515,11 +659,11 @@ function EditUserDialog({
           </button>
           <button
             type="button"
-            onClick={() => onConfirm({ name, email, worker_id: workerId })}
-            disabled={saving}
+            onClick={() => selectedProfile && onConfirm(selectedProfile.worker_id)}
+            disabled={saving || !selectedProfile}
             className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? "保存中..." : "保存"}
+            {saving ? "绑定中..." : "绑定工号"}
           </button>
         </div>
       </div>
@@ -539,14 +683,15 @@ function BatchAssignDepartmentDialog({
   departments: DepartmentNodeDto[]
 }) {
   const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null)
-  const dialogRef = useRef<HTMLDivElement>(null)
 
   const tree = useMemo(() => buildTree(departments), [departments])
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      setSelectedDeptId(null)
+      return
+    }
 
-    // ESC 键关闭
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose()
@@ -556,7 +701,7 @@ function BatchAssignDepartmentDialog({
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [isOpen, onClose])
 
-  // 点击遮罩关闭
+  // 点击遮罩时关闭弹窗。
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose()
@@ -565,6 +710,7 @@ function BatchAssignDepartmentDialog({
 
   if (!isOpen) return null
 
+  // 递归渲染部门选择树。
   const renderBranch = (parentId: number | null, depth: number) => {
     const children = tree.get(parentId)
     if (!children) return null
@@ -579,7 +725,7 @@ function BatchAssignDepartmentDialog({
             depth === 0 ? "font-semibold" : "font-normal",
             selectedDeptId === dept.id
               ? "bg-accent text-accent-foreground"
-              : "text-foreground hover:bg-muted"
+              : "text-foreground hover:bg-muted",
           )}
           style={{ paddingLeft: 12 + depth * 16 }}
         >
@@ -593,7 +739,6 @@ function BatchAssignDepartmentDialog({
 
   return (
     <div
-      ref={dialogRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={handleBackdropClick}
       role="dialog"
@@ -601,10 +746,10 @@ function BatchAssignDepartmentDialog({
       aria-labelledby="batch-dialog-title"
     >
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg">
-        <h3 id="batch-dialog-title" className="text-lg font-semibold text-foreground">批量分配部门</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          为选中的用户选择部门
-        </p>
+        <h3 id="batch-dialog-title" className="text-lg font-semibold text-foreground">
+          批量分配部门
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">为选中的用户选择部门</p>
 
         <div className="mt-4 max-h-60 overflow-y-auto rounded-md border border-border bg-background p-2">
           {renderBranch(null, 0)}
@@ -641,39 +786,40 @@ export function DepartmentsUsers() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showUnassigned, setShowUnassigned] = useState(false)
-
-  // 批量选择状态
   const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(new Set())
   const [batchAssignDialogOpen, setBatchAssignDialogOpen] = useState(false)
-
-  // 对话框状态
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addDialogParentId, setAddDialogParentId] = useState<number | null>(null)
   const [addDialogParentName, setAddDialogParentName] = useState<string>("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deleteDialogDept, setDeleteDialogDept] = useState<{
-    id: number
-    name: string
-  } | null>(null)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [editingUser, setEditingUser] = useState<DepartmentUserDto | null>(null)
-  const [editSaving, setEditSaving] = useState(false)
-  const [editError, setEditError] = useState<string | null>(null)
+  const [deleteDialogDept, setDeleteDialogDept] = useState<{ id: number; name: string } | null>(null)
+  const [matchDialogOpen, setMatchDialogOpen] = useState(false)
+  const [matchingUser, setMatchingUser] = useState<DepartmentUserDto | null>(null)
+  const [matchSaving, setMatchSaving] = useState(false)
+  const [matchError, setMatchError] = useState<string | null>(null)
 
-  const reloadDepartments = async () => {
-    try {
-      const deptTree = await fetchDepartmentsTree()
-      setDepartments(deptTree)
-      if (deptTree.length > 0 && selectedDeptId === null) {
-        setSelectedDeptId(deptTree[0].id)
-        setShowUnassigned(false)
+  // 刷新部门树，并在首次加载时默认选中第一个部门。
+  const reloadDepartments = useCallback(async () => {
+    const deptTree = await fetchDepartmentsTree()
+    setDepartments(deptTree)
+    setSelectedDeptId((previous) => {
+      if (previous !== null && (previous === UNASSIGNED_DEPT_ID || deptTree.some((dept) => dept.id === previous))) {
+        return previous
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败")
-    }
-  }
+      return deptTree[0]?.id ?? null
+    })
+  }, [])
 
-  // 加载部门树和未分配部门的用户
+  // 按当前页面状态刷新用户列表。
+  const refreshUsers = useCallback(async (currentDeptId: number | null) => {
+    const [newUnassignedUsers, newDeptUsers] = await Promise.all([
+      fetchDepartmentUsers(UNASSIGNED_DEPT_ID),
+      currentDeptId !== null ? fetchDepartmentUsers(currentDeptId) : Promise.resolve([]),
+    ])
+    setUnassignedUsers(newUnassignedUsers ?? [])
+    setDeptUsers(newDeptUsers ?? [])
+  }, [])
+
   useEffect(() => {
     const abortController = new AbortController()
 
@@ -685,15 +831,12 @@ export function DepartmentsUsers() {
           fetchDepartmentsTree(abortController.signal),
           fetchDepartmentUsers(UNASSIGNED_DEPT_ID, abortController.signal),
         ])
-        if (!abortController.signal.aborted) {
-          setDepartments(deptTree)
-          setUnassignedUsers(unassignedData ?? [])
+        if (abortController.signal.aborted) return
 
-          // 默认选中第一个部门
-          if (deptTree.length > 0 && selectedDeptId === null) {
-            setSelectedDeptId(deptTree[0].id)
-            setShowUnassigned(false)
-          }
+        setDepartments(deptTree)
+        setUnassignedUsers(unassignedData ?? [])
+        if (deptTree.length > 0) {
+          setSelectedDeptId((previous) => previous ?? deptTree[0].id)
         }
       } catch (err) {
         if (!abortController.signal.aborted) {
@@ -705,6 +848,7 @@ export function DepartmentsUsers() {
         }
       }
     }
+
     loadData()
 
     return () => {
@@ -712,15 +856,18 @@ export function DepartmentsUsers() {
     }
   }, [])
 
-  // 当选中部门改变时，加载该部门的用户
   useEffect(() => {
-    if (selectedDeptId === null) return
+    if (selectedDeptId === null) {
+      setDeptUsers([])
+      return
+    }
 
+    const currentDeptId = selectedDeptId
     const abortController = new AbortController()
 
     async function loadDeptUsers() {
       try {
-        const data = await fetchDepartmentUsers(selectedDeptId!, abortController.signal)
+        const data = await fetchDepartmentUsers(currentDeptId, abortController.signal)
         if (!abortController.signal.aborted) {
           setDeptUsers(data ?? [])
         }
@@ -730,15 +877,18 @@ export function DepartmentsUsers() {
         }
       }
     }
+
     loadDeptUsers()
 
     return () => {
       abortController.abort()
     }
-  }, [selectedDeptId, showUnassigned])
+  }, [selectedDeptId])
 
+  // 添加新部门或子部门。
   const handleAddDepartment = async (name: string) => {
     try {
+      setError(null)
       const data: { name: string; parent_id?: number } = { name }
       if (addDialogParentId !== null) {
         data.parent_id = addDialogParentId
@@ -751,14 +901,15 @@ export function DepartmentsUsers() {
     }
   }
 
+  // 删除当前右键选中的部门。
   const handleDeleteDepartment = async () => {
     if (!deleteDialogDept) return
     try {
+      setError(null)
       await deleteDepartment(deleteDialogDept.id)
       setDeleteDialogOpen(false)
       setDeleteDialogDept(null)
 
-      // 如果删除的是当前选中的部门，清空选中状态
       if (selectedDeptId === deleteDialogDept.id) {
         setSelectedDeptId(null)
         setDeptUsers([])
@@ -770,60 +921,56 @@ export function DepartmentsUsers() {
     }
   }
 
+  // 打开添加部门弹窗。
   const openAddDialog = (parentId: number | null, parentName: string) => {
     setAddDialogParentId(parentId)
     setAddDialogParentName(parentName)
     setAddDialogOpen(true)
   }
 
+  // 打开删除确认弹窗。
   const openDeleteDialog = (id: number, name: string) => {
     setDeleteDialogDept({ id, name })
     setDeleteDialogOpen(true)
   }
 
-  const openEditDialog = (user: DepartmentUserDto) => {
-    setEditingUser(user)
-    setEditError(null)
-    setEditDialogOpen(true)
+  // 打开工号匹配弹窗。
+  const openMatchDialog = (user: DepartmentUserDto) => {
+    setMatchingUser(user)
+    setMatchError(null)
+    setMatchDialogOpen(true)
   }
 
+  // 统一跳转到用户个人页。
   const openUserProfile = (user: DepartmentUserDto) => {
     router.push(`/users/${user.id}?repoId=-1`)
   }
 
-  const handleEditUser = async (payload: { name: string; email: string; worker_id: string }) => {
-    if (!editingUser) return
-    try {
-      setEditSaving(true)
-      setEditError(null)
-      await updateUser(editingUser.id, {
-        name: payload.name.trim() || null,
-        email: payload.email.trim() || null,
-        worker_id: payload.worker_id,
-      })
+  // 提交工号绑定，并同步刷新左右用户列表。
+  const handleBindWorkerProfile = async (workerId: string) => {
+    if (!matchingUser) return
 
-      const [newUnassignedUsers, newDeptUsers] = await Promise.all([
-        fetchDepartmentUsers(UNASSIGNED_DEPT_ID),
-        selectedDeptId !== null ? fetchDepartmentUsers(selectedDeptId) : Promise.resolve([]),
-      ])
-      setUnassignedUsers(newUnassignedUsers ?? [])
-      setDeptUsers(newDeptUsers ?? [])
-      setEditDialogOpen(false)
-      setEditingUser(null)
-      setEditError(null)
+    try {
+      setMatchSaving(true)
+      setMatchError(null)
+      await bindUserWorkerProfile(matchingUser.id, { worker_id: workerId })
+      await refreshUsers(selectedDeptId)
+      setSelectedUserIds((prev) => {
+        const next = new Set(prev)
+        next.delete(matchingUser.id)
+        return next
+      })
+      setMatchDialogOpen(false)
+      setMatchingUser(null)
     } catch (err) {
-      const message = err instanceof Error ? err.message : "更新用户失败"
-      if (message.includes("worker_id already exists")) {
-        setEditError("工号已存在，请更换后重试")
-      } else {
-        setEditError(message)
-      }
+      const message = err instanceof Error ? err.message : "绑定工号失败"
+      setMatchError(message)
     } finally {
-      setEditSaving(false)
+      setMatchSaving(false)
     }
   }
 
-  // 处理用户选择
+  // 切换未分配页面中的批量选择状态。
   const handleToggleUser = (userId: number) => {
     setSelectedUserIds((prev) => {
       const next = new Set(prev)
@@ -836,24 +983,18 @@ export function DepartmentsUsers() {
     })
   }
 
-  // 处理批量分配部门
+  // 批量把未分配用户移动到指定部门。
   const handleBatchAssign = async (departmentId: number | null) => {
     if (selectedUserIds.size === 0) return
     try {
+      setError(null)
       await batchUpdateUsersDepartment({
         user_ids: Array.from(selectedUserIds),
         department_id: departmentId,
       })
       setBatchAssignDialogOpen(false)
       setSelectedUserIds(new Set())
-
-      // 重新加载数据
-      const [newUnassignedUsers, newDeptUsers] = await Promise.all([
-        fetchDepartmentUsers(UNASSIGNED_DEPT_ID),
-        selectedDeptId ? fetchDepartmentUsers(selectedDeptId) : Promise.resolve([]),
-      ])
-      setUnassignedUsers(newUnassignedUsers ?? [])
-      setDeptUsers(newDeptUsers ?? [])
+      await refreshUsers(selectedDeptId)
     } catch (err) {
       setError(err instanceof Error ? err.message : "批量分配失败")
     }
@@ -863,19 +1004,11 @@ export function DepartmentsUsers() {
   const isUnassigned = showUnassigned
 
   if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        加载中...
-      </div>
-    )
+    return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">加载中...</div>
   }
 
   if (error) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-destructive">
-        {error}
-      </div>
-    )
+    return <div className="flex h-full items-center justify-center text-sm text-destructive">{error}</div>
   }
 
   return (
@@ -886,9 +1019,7 @@ export function DepartmentsUsers() {
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-foreground">部门树</p>
-                <p className="text-xs text-muted-foreground">
-                  右键点击部门管理 · 左键点击查看成员
-                </p>
+                <p className="text-xs text-muted-foreground">右键点击部门管理 · 左键点击查看成员</p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
@@ -910,6 +1041,7 @@ export function DepartmentsUsers() {
                 onSelect={(id) => {
                   setShowUnassigned(false)
                   setSelectedDeptId(id)
+                  setSelectedUserIds(new Set())
                 }}
                 departments={departments}
                 onDeleteDept={openDeleteDialog}
@@ -923,10 +1055,11 @@ export function DepartmentsUsers() {
             onClick={() => {
               setShowUnassigned(true)
               setSelectedDeptId(UNASSIGNED_DEPT_ID)
+              setSelectedUserIds(new Set())
             }}
             className={cn(
               "rounded-xl border border-border bg-card p-4 text-left transition",
-              showUnassigned ? "border-accent bg-accent/50" : "hover:bg-muted/50"
+              showUnassigned ? "border-accent bg-accent/50" : "hover:bg-muted/50",
             )}
           >
             <div className="flex items-center justify-between">
@@ -946,11 +1079,7 @@ export function DepartmentsUsers() {
             <div>
               <p className="text-sm font-semibold text-foreground">当前部门成员</p>
               <p className="text-xs text-muted-foreground">
-                {isUnassigned
-                  ? "未分配部门"
-                  : selectedDept
-                  ? selectedDept.name
-                  : "未选择部门"}
+                {isUnassigned ? "未分配部门" : selectedDept ? selectedDept.name : "未选择部门"}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -978,16 +1107,20 @@ export function DepartmentsUsers() {
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {deptUsers.map((user) => (
-                  <UserCard
-                    key={user.id}
-                    user={user}
-                    selected={selectedUserIds.has(user.id)}
-                    onSelect={handleToggleUser}
-                    onEdit={openEditDialog}
-                    onOpenProfile={openUserProfile}
-                  />
-                ))}
+                {deptUsers.map((user) =>
+                  isUnassigned ? (
+                    <MatchUserCard
+                      key={user.id}
+                      user={user}
+                      selected={selectedUserIds.has(user.id)}
+                      onSelect={handleToggleUser}
+                      onMatch={openMatchDialog}
+                      onOpenProfile={openUserProfile}
+                    />
+                  ) : (
+                    <UserCard key={user.id} user={user} onOpenProfile={openUserProfile} />
+                  ),
+                )}
               </div>
             )}
           </div>
@@ -1008,18 +1141,18 @@ export function DepartmentsUsers() {
         deptName={deleteDialogDept?.name ?? ""}
       />
 
-      <EditUserDialog
-        isOpen={editDialogOpen}
-        user={editingUser}
-        saving={editSaving}
-        error={editError}
+      <MatchWorkerProfileDialog
+        isOpen={matchDialogOpen}
+        user={matchingUser}
+        saving={matchSaving}
+        saveError={matchError}
         onClose={() => {
-          if (editSaving) return
-          setEditDialogOpen(false)
-          setEditingUser(null)
-          setEditError(null)
+          if (matchSaving) return
+          setMatchDialogOpen(false)
+          setMatchingUser(null)
+          setMatchError(null)
         }}
-        onConfirm={handleEditUser}
+        onConfirm={handleBindWorkerProfile}
       />
 
       <BatchAssignDepartmentDialog

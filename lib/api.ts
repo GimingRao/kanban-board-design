@@ -358,6 +358,13 @@ export interface DepartmentUsersDto {
   users: DepartmentUserDto[]
 }
 
+export interface WorkerProfileDto {
+  worker_id: string
+  name: string
+  email: string
+  department_path: string[]
+}
+
 export function fetchDepartmentsTree(signal?: AbortSignal): Promise<DepartmentNodeDto[]> {
   return getJson<DepartmentNodeDto[]>("/departments/tree", signal)
 }
@@ -390,19 +397,30 @@ export function batchUpdateUsersDepartment(
   return patchJson<{ updated: number }>("/users/department", data, signal)
 }
 
-export interface UpdateUserPayload {
-  name?: string | null
-  email?: string | null
-  worker_id?: string | null
-  department_id?: number | null
+export function fetchWorkerProfiles(
+  params: { query?: string; limit?: number },
+  signal?: AbortSignal,
+): Promise<WorkerProfileDto[]> {
+  const searchParams = new URLSearchParams()
+  if (params.query?.trim()) {
+    searchParams.set("query", params.query.trim())
+  }
+  if (params.limit) {
+    searchParams.set("limit", String(params.limit))
+  }
+  const query = searchParams.toString()
+  return getJson<{ items: WorkerProfileDto[] }>(
+    `/worker-profiles${query ? `?${query}` : ""}`,
+    signal,
+  ).then((response) => response.items ?? [])
 }
 
-export function updateUser(
+export function bindUserWorkerProfile(
   userId: number,
-  data: UpdateUserPayload,
+  data: { worker_id: string },
   signal?: AbortSignal,
 ): Promise<DepartmentUserDto> {
-  return patchJson<DepartmentUserDto>(`/users/${userId}`, data, signal)
+  return patchJson<DepartmentUserDto>(`/users/${userId}/worker-profile`, data, signal)
 }
 
 export interface AIRatioLeaderboardDto {
@@ -458,6 +476,7 @@ export interface AICommitItemDto {
     sha: string
     message: string
     committed_at: string
+    url?: string | null
   }
   user: {
     id: number

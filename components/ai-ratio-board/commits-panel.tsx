@@ -1,11 +1,11 @@
 ﻿"use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
   fetchAICommitsByDepartment,
-  fetchAICommitsByRepo,
   fetchAICommitsByUser,
   type AICommitsDto,
 } from "@/lib/api"
@@ -62,6 +62,7 @@ export interface CommitsPanelProps {
 }
 
 export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps) {
+  const router = useRouter()
   const [data, setData] = useState<AICommitsDto | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -124,10 +125,9 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
     setError(null)
     setPage(1)
 
-    let fetchData: () => Promise<AICommitsDto>
-
-    if (selectedItem.type === "department") {
-      fetchData = () =>
+    const fetchData =
+      selectedItem.type === "department"
+        ? () =>
         fetchAICommitsByDepartment({
           department_id: selectedItem.id,
           year: parsed.year,
@@ -135,8 +135,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
           page: 1,
           page_size: visibleRows,
         })
-    } else if (selectedItem.type === "user") {
-      fetchData = () =>
+        : () =>
         fetchAICommitsByUser({
           user_id: selectedItem.id,
           year: parsed.year,
@@ -144,16 +143,6 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
           page: 1,
           page_size: visibleRows,
         })
-    } else {
-      fetchData = () =>
-        fetchAICommitsByRepo({
-          repo_id: selectedItem.id,
-          year: parsed.year,
-          month: parsed.month,
-          page: 1,
-          page_size: visibleRows,
-        })
-    }
 
     fetchData()
       .then((result) => {
@@ -185,10 +174,9 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
     setLoading(true)
     setError(null)
 
-    let fetchData: () => Promise<AICommitsDto>
-
-    if (selectedItem.type === "department") {
-      fetchData = () =>
+    const fetchData =
+      selectedItem.type === "department"
+        ? () =>
         fetchAICommitsByDepartment({
           department_id: selectedItem.id,
           year: parsed.year,
@@ -196,8 +184,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
           page,
           page_size: visibleRows,
         })
-    } else if (selectedItem.type === "user") {
-      fetchData = () =>
+        : () =>
         fetchAICommitsByUser({
           user_id: selectedItem.id,
           year: parsed.year,
@@ -205,16 +192,6 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
           page,
           page_size: visibleRows,
         })
-    } else {
-      fetchData = () =>
-        fetchAICommitsByRepo({
-          repo_id: selectedItem.id,
-          year: parsed.year,
-          month: parsed.month,
-          page,
-          page_size: visibleRows,
-        })
-    }
 
     fetchData()
       .then((result) => {
@@ -298,7 +275,15 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
                         "-"
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-card-foreground">{item.user.name}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-card-foreground">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/users/${item.user.id}?repoId=-1`)}
+                        className="text-left hover:text-primary hover:underline"
+                      >
+                        {item.user.name}
+                      </button>
+                    </td>
                     <td className="max-w-[400px] whitespace-pre-wrap break-words px-4 py-3 text-card-foreground">
                       {item.commit.message?.trim() || "-"}
                     </td>
