@@ -11,15 +11,20 @@ import {
   type UserProfileCommitItemDto,
   type UserProfileDto,
 } from "@/lib/api"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-// 格式化时间，统一页面展示风格。
+const PAGE_SIZE = 10
+
+type DetailTab = "commits" | "ai-records"
+
+/** 格式化时间，统一页面展示风格。 */
 function formatDateTime(value: string | null) {
   if (!value) return "-"
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return d.toLocaleString("zh-CN", {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString("zh-CN", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -28,26 +33,24 @@ function formatDateTime(value: string | null) {
   })
 }
 
-// 把接口返回的月份字符串转成中文标签。
+/** 将 YYYY-MM 转成中文月份标签。 */
 function monthToLabel(period: string) {
   const [year, month] = period.split("-")
   if (!year || !month) return period
   return `${year}年${Number(month)}月`
 }
 
-// 从新老两种提交结构里提取可用跳转地址。
-// 直接使用后端返回的提交链接，避免前端继续依赖 sha 字段。
+/** 直接使用后端返回的提交链接，避免前端自行拼接。 */
 function buildCommitUrl(commit: UserProfileCommitItemDto) {
   return commit.commit_url || null
 }
 
-// 从新老两种提交结构里提取展示用短标识。
-// 统一提交入口文案，不再向页面暴露 sha。
+/** 统一提交入口文案，避免页面暴露原始 sha。 */
 function getCommitLabel(commit: UserProfileCommitItemDto) {
   return commit.commit_url ? "查看提交" : "-"
 }
 
-// 把 AI 记录状态映射为中文。
+/** 将 AI 记录状态转换为中文标签。 */
 function aiStatusLabel(status: UserProfileAIRecordItemDto["status"]) {
   if (status === "fully_matched") return "已匹配"
   if (status === "partially_matched") return "部分匹配"
@@ -55,19 +58,29 @@ function aiStatusLabel(status: UserProfileAIRecordItemDto["status"]) {
   return status || "-"
 }
 
-// 统一展示 AI 工具名称。
+/** 统一显示 AI 工具名称。 */
 function formatAiTool(tool: string) {
   return tool || "-"
 }
 
-// 追加被截断提示，避免误解 diff 被完整展示。
+/** 为截断的 diff 追加提示，避免误解为完整内容。 */
 function truncatePreviewSuffix(truncated: boolean) {
   return truncated ? "\n...（已截断）" : ""
 }
 
-// 兼容后端新旧用户字段命名。
+/** 兼容后端不同账号字段的展示逻辑。 */
 function getUserAccountLabel(data: UserProfileDto) {
   return data.user.git_name || data.user.username || "-"
+}
+
+/** 渲染提交列表分页摘要。 */
+function getCommitPaginationSummary(data: UserProfileDto) {
+  return `第 ${data.pagination.page} / ${Math.max(data.pagination.total_pages, 1)} 页（共 ${data.pagination.total} 条）`
+}
+
+/** 渲染 AI 记录分页摘要。 */
+function getAiPaginationSummary(data: UserProfileDto) {
+  return `第 ${data.ai_records_pagination.page} / ${Math.max(data.ai_records_pagination.total_pages, 1)} 页（共 ${data.ai_records_pagination.total} 条）`
 }
 
 export default function UserProfilePage() {
@@ -82,10 +95,17 @@ export default function UserProfilePage() {
   const initialYear = yearParam ? Number(yearParam) : undefined
   const initialMonth = monthParam ? Number(monthParam) : undefined
 
-  const [page, setPage] = useState(1)
+  const [activeTab, setActiveTab] = useState<DetailTab>("commits")
+  const [commitPage, setCommitPage] = useState(1)
+  const [aiPage, setAiPage] = useState(1)
   const [data, setData] = useState<UserProfileDto | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setCommitPage(1)
+    setAiPage(1)
+  }, [repoId, userId, initialYear, initialMonth])
 
   useEffect(() => {
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -109,14 +129,16 @@ export default function UserProfilePage() {
       {
         year: initialYear,
         month: initialMonth,
-        page,
-        pageSize: 10,
+        commitPage,
+        commitPageSize: PAGE_SIZE,
+        aiPage,
+        aiPageSize: PAGE_SIZE,
       },
       abortController.signal,
     )
-      .then((res) => {
+      .then((response) => {
         if (abortController.signal.aborted) return
-        setData(res)
+        setData(response)
       })
       .catch((err: unknown) => {
         if (abortController.signal.aborted) return
@@ -131,10 +153,10 @@ export default function UserProfilePage() {
     return () => {
       abortController.abort()
     }
-  }, [repoId, userId, initialYear, initialMonth, page])
+  }, [repoId, userId, initialYear, initialMonth, commitPage, aiPage])
 
-  const canPrev = (data?.pagination.page ?? 1) > 1
-  const canNext = (data?.pagination.total_pages ?? 0) > (data?.pagination.page ?? 1)
+  const canPrevCommit = (data?.pagination.page ?? 1) > 1
+  const canNextCommit = (data?.pagination.total_pages ?? 0) > (data?.pagination.page ?? 1)
   const canPrevAi = (data?.ai_records_pagination.page ?? 1) > 1
   const canNextAi =
     (data?.ai_records_pagination.total_pages ?? 0) > (data?.ai_records_pagination.page ?? 1)
@@ -154,7 +176,7 @@ export default function UserProfilePage() {
           </div>
         </div>
 
-        {loading ? (
+        {loading && !data ? (
           <Card>
             <CardContent className="py-12 text-center text-sm text-muted-foreground">
               正在加载用户详情...
@@ -224,154 +246,157 @@ export default function UserProfilePage() {
             </div>
 
             <Card>
-              <CardHeader>
-                <CardTitle>最近提交代码</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {data.recent_commits.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-muted-foreground">
-                    该时间范围内暂无提交记录
+              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
+                <CardHeader className="gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <CardTitle>代码明细</CardTitle>
+                    <TabsList>
+                      <TabsTrigger value="commits">最近提交代码</TabsTrigger>
+                      <TabsTrigger value="ai-records">AI 代码记录</TabsTrigger>
+                    </TabsList>
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
-                          <th className="py-2">时间</th>
-                          <th className="py-2">提交</th>
-                          <th className="py-2">仓库</th>
-                          <th className="py-2">提交信息</th>
-                          <th className="py-2 text-right">新增</th>
-                          <th className="py-2 text-right">AI</th>
-                          <th className="py-2 text-right">占比</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.recent_commits.map((commit) => {
-                          const commitUrl = buildCommitUrl(commit)
-                          const commitLabel = getCommitLabel(commit)
-                          return (
-                            <tr key={commit.id} className="border-b border-border/50 align-top">
-                              <td className="whitespace-nowrap py-2 pr-4 text-muted-foreground">
-                                {formatDateTime(commit.committed_at)}
-                              </td>
-                              <td className="py-2 pr-4 font-mono text-xs">
-                                {commitUrl ? (
-                                  <a
-                                    href={commitUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-primary hover:underline"
-                                  >
-                                    {commitLabel}
-                                  </a>
-                                ) : (
-                                  commitLabel
-                                )}
-                              </td>
-                              <td className="whitespace-nowrap py-2 pr-4">{commit.repo_name}</td>
-                              <td className="max-w-[520px] whitespace-pre-wrap break-words py-2 pr-4">
-                                {commit.message || "-"}
-                              </td>
-                              <td className="py-2 pr-4 text-right font-mono text-green-600">
-                                +{commit.additions.toLocaleString()}
-                              </td>
-                              <td className="py-2 pr-4 text-right font-mono">
-                                {commit.ai_lines.toLocaleString()}
-                              </td>
-                              <td className="py-2 pr-4 text-right font-mono">
-                                {commit.ai_ratio.toFixed(2)}%
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground">
-                    第 {data.pagination.page} / {Math.max(data.pagination.total_pages, 1)} 页（共 {data.pagination.total} 条）
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!canPrev || loading}
-                      onClick={() => setPage((current) => Math.max(1, current - 1))}
-                    >
-                      上一页
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!canNext || loading}
-                      onClick={() => setPage((current) => current + 1)}
-                    >
-                      下一页
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>AI 代码记录</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {data.recent_ai_records.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-muted-foreground">
-                    该时间范围内暂无 AI 代码记录
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {data.recent_ai_records.map((record) => (
-                      <div key={record.id} className="rounded-md border border-border/60 p-3">
-                        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <span>{formatDateTime(record.timestamp)}</span>
-                          <span>Event: {record.event_id}</span>
-                          <span>Tool: {formatAiTool(record.ai_tool)}</span>
-                          <span>状态：{aiStatusLabel(record.status)}</span>
-                          <span>新增行数：{record.lines_added_total}</span>
-                        </div>
-                        <div className="mb-2 text-sm">
-                          <span className="text-muted-foreground">文件：</span>
-                          <span className="font-mono">{record.file_path || "-"}</span>
-                        </div>
-                        <pre className="max-h-64 overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap break-words">
-                          {(record.diff_preview || "") + truncatePreviewSuffix(record.diff_truncated)}
-                        </pre>
+                </CardHeader>
+                <CardContent>
+                  <TabsContent value="commits" className="mt-0">
+                    {data.recent_commits.length === 0 ? (
+                      <div className="py-8 text-center text-sm text-muted-foreground">
+                        该时间范围内暂无提交记录
                       </div>
-                    ))}
-                  </div>
-                )}
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
+                              <th className="py-2">时间</th>
+                              <th className="py-2">提交</th>
+                              <th className="py-2">仓库</th>
+                              <th className="py-2">提交信息</th>
+                              <th className="py-2 text-right">新增</th>
+                              <th className="py-2 text-right">AI</th>
+                              <th className="py-2 text-right">占比</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.recent_commits.map((commit) => {
+                              const commitUrl = buildCommitUrl(commit)
+                              const commitLabel = getCommitLabel(commit)
+                              return (
+                                <tr key={commit.id} className="border-b border-border/50 align-top">
+                                  <td className="whitespace-nowrap py-2 pr-4 text-muted-foreground">
+                                    {formatDateTime(commit.committed_at)}
+                                  </td>
+                                  <td className="py-2 pr-4 font-mono text-xs">
+                                    {commitUrl ? (
+                                      <a
+                                        href={commitUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-primary hover:underline"
+                                      >
+                                        {commitLabel}
+                                      </a>
+                                    ) : (
+                                      commitLabel
+                                    )}
+                                  </td>
+                                  <td className="whitespace-nowrap py-2 pr-4">{commit.repo_name}</td>
+                                  <td className="max-w-[520px] whitespace-pre-wrap break-words py-2 pr-4">
+                                    {commit.message || "-"}
+                                  </td>
+                                  <td className="py-2 pr-4 text-right font-mono text-green-600">
+                                    +{commit.additions.toLocaleString()}
+                                  </td>
+                                  <td className="py-2 pr-4 text-right font-mono">
+                                    {commit.ai_lines.toLocaleString()}
+                                  </td>
+                                  <td className="py-2 pr-4 text-right font-mono">
+                                    {commit.ai_ratio.toFixed(2)}%
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
 
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground">
-                    第 {data.ai_records_pagination.page} / {Math.max(data.ai_records_pagination.total_pages, 1)} 页（共 {data.ai_records_pagination.total} 条）
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!canPrevAi || loading}
-                      onClick={() => setPage((current) => Math.max(1, current - 1))}
-                    >
-                      上一页
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!canNextAi || loading}
-                      onClick={() => setPage((current) => current + 1)}
-                    >
-                      下一页
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="text-xs text-muted-foreground">
+                        {getCommitPaginationSummary(data)}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!canPrevCommit || loading}
+                          onClick={() => setCommitPage((current) => Math.max(1, current - 1))}
+                        >
+                          上一页
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!canNextCommit || loading}
+                          onClick={() => setCommitPage((current) => current + 1)}
+                        >
+                          下一页
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="ai-records" className="mt-0">
+                    {data.recent_ai_records.length === 0 ? (
+                      <div className="py-8 text-center text-sm text-muted-foreground">
+                        该时间范围内暂无 AI 代码记录
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {data.recent_ai_records.map((record) => (
+                          <div key={record.id} className="rounded-md border border-border/60 p-3">
+                            <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                              <span>{formatDateTime(record.timestamp)}</span>
+                              <span>Event: {record.event_id}</span>
+                              <span>Tool: {formatAiTool(record.ai_tool)}</span>
+                              <span>状态：{aiStatusLabel(record.status)}</span>
+                              <span>新增行数：{record.lines_added_total}</span>
+                            </div>
+                            <div className="mb-2 text-sm">
+                              <span className="text-muted-foreground">文件：</span>
+                              <span className="font-mono">{record.file_path || "-"}</span>
+                            </div>
+                            <pre className="max-h-64 overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap break-words">
+                              {(record.diff_preview || "") + truncatePreviewSuffix(record.diff_truncated)}
+                            </pre>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="text-xs text-muted-foreground">{getAiPaginationSummary(data)}</div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!canPrevAi || loading}
+                          onClick={() => setAiPage((current) => Math.max(1, current - 1))}
+                        >
+                          上一页
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!canNextAi || loading}
+                          onClick={() => setAiPage((current) => current + 1)}
+                        >
+                          下一页
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </CardContent>
+              </Tabs>
             </Card>
           </>
         )}

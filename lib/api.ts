@@ -385,7 +385,16 @@ export function fetchUserCommits(
 export function fetchUserProfile(
   repoId: number,
   userId: number,
-  options?: { year?: number; month?: number; page?: number; pageSize?: number },
+  options?: {
+    year?: number
+    month?: number
+    page?: number
+    pageSize?: number
+    commitPage?: number
+    commitPageSize?: number
+    aiPage?: number
+    aiPageSize?: number
+  },
   signal?: AbortSignal,
 ): Promise<UserProfileDto> {
   const params = new URLSearchParams()
@@ -393,6 +402,10 @@ export function fetchUserProfile(
   if (options?.month) params.set("month", String(options.month))
   if (options?.page) params.set("page", String(options.page))
   if (options?.pageSize) params.set("page_size", String(options.pageSize))
+  if (options?.commitPage) params.set("commit_page", String(options.commitPage))
+  if (options?.commitPageSize) params.set("commit_page_size", String(options.commitPageSize))
+  if (options?.aiPage) params.set("ai_page", String(options.aiPage))
+  if (options?.aiPageSize) params.set("ai_page_size", String(options.aiPageSize))
   const query = params.toString()
   return getJson<UserProfileDto>(
     `/repos/${repoId}/users/${userId}/profile${query ? `?${query}` : ""}`,
