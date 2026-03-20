@@ -24,7 +24,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
 }
 
-// 解析年月筛选值，供提交明细接口请求复用。
+// 解析年月筛选值，供提交明细接口复用。
 function parseMonth(value: string): { year: number; month: number } | null {
   const [yearText, monthText] = value.split("-")
   const year = Number(yearText)
@@ -113,12 +113,21 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
     setPage(1)
   }, [visibleRows])
 
-  // 首次选中对象或分页尺寸变化时，重新请求第一页数据。
+  // 切换对象或月份时先回到第 1 页，避免沿用旧分页状态。
   useEffect(() => {
     if (!selectedItem) {
       setData(null)
+      setError(null)
+      setPage(1)
       return
     }
+
+    setPage(1)
+  }, [selectedItem, selectedMonth, visibleRows])
+
+  // 按当前页统一请求数据，确保从第 2 页返回第 1 页时也会刷新列表。
+  useEffect(() => {
+    if (!selectedItem) return
 
     const parsed = parseMonth(selectedMonth)
     if (!parsed) return
@@ -126,7 +135,6 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
     let cancelled = false
     setLoading(true)
     setError(null)
-    setPage(1)
 
     const fetchData =
       selectedItem.type === "department"
@@ -135,7 +143,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
               department_id: selectedItem.id,
               year: parsed.year,
               month: parsed.month,
-              page: 1,
+              page,
               page_size: visibleRows,
             })
         : () =>
@@ -143,7 +151,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
               user_id: selectedItem.id,
               year: parsed.year,
               month: parsed.month,
-              page: 1,
+              page,
               page_size: visibleRows,
             })
 
@@ -157,55 +165,6 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
         const message = err instanceof Error ? err.message : "加载提交明细失败"
         setError(message)
         setData(null)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [selectedItem, selectedMonth, visibleRows])
-
-  // 翻页时仅更新当前页，避免重复重置已选对象。
-  useEffect(() => {
-    if (!selectedItem || page === 1) return
-
-    const parsed = parseMonth(selectedMonth)
-    if (!parsed) return
-
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-
-    const fetchData =
-      selectedItem.type === "department"
-        ? () =>
-            fetchAICommitsByDepartment({
-              department_id: selectedItem.id,
-              year: parsed.year,
-              month: parsed.month,
-              page,
-              page_size: visibleRows,
-            })
-        : () =>
-            fetchAICommitsByUser({
-              user_id: selectedItem.id,
-              year: parsed.year,
-              month: parsed.month,
-              page,
-              page_size: visibleRows,
-            })
-
-    fetchData()
-      .then((result) => {
-        if (cancelled) return
-        setData(result)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        const message = err instanceof Error ? err.message : "加载提交明细失败"
-        setError(message)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)

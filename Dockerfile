@@ -15,25 +15,36 @@ RUN sed -i "s/dl-cdn.alpinelinux.org/${ALPINE_MIRROR}/g" /etc/apk/repositories \
 
 WORKDIR /app
 
-# 仅复制依赖清单，尽可能稳定命中依赖安装缓存层
+# 仅复制依赖清单，尽可能稳定命中依赖缓存层
 FROM base AS deps
 
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
 
-# 使用 BuildKit 缓存包管理器下载目录，减少重复下载依赖的开销
+# 先把依赖下载到 pnpm store，避免源码变更时重新走完整下载流程
 RUN --mount=type=cache,target=/root/.npm \
   --mount=type=cache,target=/root/.local/share/pnpm/store \
   --mount=type=cache,target=/usr/local/share/.cache/yarn \
-  if [ -f pnpm-lock.yaml ]; then pnpm config set registry ${NPM_REGISTRY} && pnpm install --frozen-lockfile; \
+  if [ -f pnpm-lock.yaml ]; then pnpm config set registry ${NPM_REGISTRY} && pnpm fetch --frozen-lockfile; \
   elif [ -f yarn.lock ]; then yarn config set registry ${NPM_REGISTRY} && yarn install --frozen-lockfile; \
   elif [ -f package-lock.json ]; then npm config set registry ${NPM_REGISTRY} && npm ci; \
   else echo "Lockfile not found." && npm config set registry ${NPM_REGISTRY} && npm install; \
   fi
 
-# 构建阶段在依赖层之后再复制业务代码，避免源码变更导致依赖层失效
+# 构建阶段在依赖层之后再复制业务代码，避免源码变更导致下载缓存失效
 FROM base AS builder
 
-COPY --from=deps /app/node_modules ./node_modules
+COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
+
+# 离线安装依赖，只从缓存仓库读取，减少重复网络请求
+RUN --mount=type=cache,target=/root/.npm \
+  --mount=type=cache,target=/root/.local/share/pnpm/store \
+  --mount=type=cache,target=/usr/local/share/.cache/yarn \
+  if [ -f pnpm-lock.yaml ]; then pnpm config set registry ${NPM_REGISTRY} && pnpm install --frozen-lockfile --offline; \
+  elif [ -f yarn.lock ]; then yarn config set registry ${NPM_REGISTRY} && yarn install --frozen-lockfile; \
+  elif [ -f package-lock.json ]; then npm config set registry ${NPM_REGISTRY} && npm ci; \
+  else echo "Lockfile not found." && npm config set registry ${NPM_REGISTRY} && npm install; \
+  fi
+
 COPY . .
 
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8100
