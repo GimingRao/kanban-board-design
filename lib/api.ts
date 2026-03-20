@@ -1,6 +1,35 @@
 const DEFAULT_API_BASE_URL = "http://localhost:8100"
 const FALLBACK_API_BASE_URL = "http://192.168.2.121:8000"
 
+export const AUTH_ERROR_EVENT = "app:auth-error"
+
+export interface AuthErrorDetail {
+  status: number
+  code?: string
+  message?: string
+}
+
+export class ApiRequestError extends Error {
+  status: number
+  code?: string
+  payload?: unknown
+
+  // 统一封装接口错误，便于页面层按状态码和业务码做跳转。
+  constructor(status: number, message: string, options?: { code?: string; payload?: unknown }) {
+    super(message)
+    this.name = "ApiRequestError"
+    this.status = status
+    this.code = options?.code
+    this.payload = options?.payload
+  }
+}
+
+// 在浏览器环境抛出统一鉴权事件，供认证 Provider 处理跳转。
+function notifyAuthError(detail: AuthErrorDetail) {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent<AuthErrorDetail>(AUTH_ERROR_EVENT, { detail }))
+}
+
 // 解析可用 API 地址列表，优先使用环境变量，其次回退到历史服务器地址。
 function getApiBaseUrls(): string[] {
   const primaryBaseUrl =
@@ -22,12 +51,45 @@ async function requestJson<T>(
     try {
       const res = await fetch(`${apiBaseUrl}${path}`, {
         ...init,
+        credentials: "include",
         signal,
       })
 
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Request failed: ${res.status} ${res.statusText} ${text}`)
+        const contentType = res.headers.get("content-type") || ""
+        const payload = contentType.includes("application/json")
+          ? await res.json().catch(() => null)
+          : await res.text().catch(() => "")
+        const message =
+          (typeof payload === "object" &&
+            payload !== null &&
+            "message" in payload &&
+            typeof payload.message === "string" &&
+            payload.message) ||
+          (typeof payload === "string" && payload) ||
+          res.statusText ||
+          "Request failed"
+        const code =
+          typeof payload === "object" &&
+          payload !== null &&
+          "code" in payload &&
+          typeof payload.code === "string"
+            ? payload.code
+            : undefined
+
+        if (res.status === 401 || (res.status === 403 && code === "PROFILE_INCOMPLETE")) {
+          notifyAuthError({
+            status: res.status,
+            code,
+            message,
+          })
+        }
+
+        throw new ApiRequestError(res.status, message, { code, payload })
+      }
+
+      if (res.status === 204) {
+        return undefined as T
       }
 
       return (await res.json()) as T
@@ -365,6 +427,33 @@ export interface WorkerProfileDto {
   department_path: string[]
 }
 
+export interface CurrentUserDto {
+  id: number
+  name: string
+  email: string
+  git_name?: string | null
+  worker_id?: string | null
+  status?: string | null
+  must_change_password?: boolean
+  has_bound_worker_profile?: boolean
+  login_hint?: string | null
+  created?: boolean
+}
+
+export interface ApiEnvelopeDto<T> {
+  code: string
+  message: string
+  data: T
+}
+
+// 认证相关接口统一走 /api/v1 前缀，避免与现有业务接口路径混淆。
+const AUTH_API_PREFIX = "/api/v1/auth"
+
+// 兼容后端统一返回的 code/message/data 包装结构。
+function unwrapApiEnvelope<T>(response: ApiEnvelopeDto<T>): T {
+  return response.data
+}
+
 export function fetchDepartmentsTree(signal?: AbortSignal): Promise<DepartmentNodeDto[]> {
   return getJson<DepartmentNodeDto[]>("/departments/tree", signal)
 }
@@ -421,6 +510,60 @@ export function bindUserWorkerProfile(
   signal?: AbortSignal,
 ): Promise<DepartmentUserDto> {
   return patchJson<DepartmentUserDto>(`/users/${userId}/worker-profile`, data, signal)
+}
+
+export function login(
+  data: { email: string; password: string },
+  signal?: AbortSignal,
+): Promise<CurrentUserDto> {
+  return postJson<ApiEnvelopeDto<CurrentUserDto>>(`${AUTH_API_PREFIX}/login`, data, signal).then(
+    unwrapApiEnvelope,
+  )
+}
+
+export function logout(signal?: AbortSignal): Promise<{ success: boolean }> {
+  return postJson<{ success: boolean }>(`${AUTH_API_PREFIX}/logout`, {}, signal)
+}
+
+export function fetchCurrentUser(signal?: AbortSignal): Promise<CurrentUserDto> {
+  return getJson<ApiEnvelopeDto<CurrentUserDto>>(`${AUTH_API_PREFIX}/me`, signal).then(
+    unwrapApiEnvelope,
+  )
+}
+
+export function bindCurrentUserWorkerProfile(
+  data: { worker_id: string },
+  signal?: AbortSignal,
+): Promise<CurrentUserDto> {
+  return patchJson<ApiEnvelopeDto<CurrentUserDto>>(
+    `${AUTH_API_PREFIX}/me/worker-profile`,
+    data,
+    signal,
+  ).then(unwrapApiEnvelope)
+}
+
+export function changeCurrentUserPassword(
+  data: { current_password: string; new_password: string },
+  signal?: AbortSignal,
+): Promise<{ success: boolean; require_relogin?: boolean }> {
+  return postJson<{ success: boolean; require_relogin?: boolean }>(
+    `${AUTH_API_PREFIX}/me/change-password`,
+    data,
+    signal,
+  )
+}
+
+export function fetchMyProfile(
+  options?: { year?: number; month?: number; page?: number; pageSize?: number },
+  signal?: AbortSignal,
+): Promise<UserProfileDto> {
+  const params = new URLSearchParams()
+  if (options?.year) params.set("year", String(options.year))
+  if (options?.month) params.set("month", String(options.month))
+  if (options?.page) params.set("page", String(options.page))
+  if (options?.pageSize) params.set("page_size", String(options.pageSize))
+  const query = params.toString()
+  return getJson<UserProfileDto>(`${AUTH_API_PREFIX}/me/profile${query ? `?${query}` : ""}`, signal)
 }
 
 export interface AIRatioLeaderboardDto {
