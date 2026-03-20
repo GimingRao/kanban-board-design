@@ -5,21 +5,22 @@ import { useEffect, useState } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 
+import { TrendChartPanel } from "@/components/ai-ratio-board"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   fetchUserProfile,
   type UserProfileAIRecordItemDto,
   type UserProfileCommitItemDto,
   type UserProfileDto,
 } from "@/lib/api"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const PAGE_SIZE = 10
 
-type DetailTab = "commits" | "ai-records"
+type DetailTab = "commits" | "ai-records" | "trend"
 
-/** 格式化时间，统一页面展示风格。 */
+/** 统一格式化时间，避免列表中的时间展示不一致。 */
 function formatDateTime(value: string | null) {
   if (!value) return "-"
   const date = new Date(value)
@@ -40,17 +41,17 @@ function monthToLabel(period: string) {
   return `${year}年${Number(month)}月`
 }
 
-/** 直接使用后端返回的提交链接，避免前端自行拼接。 */
+/** 直接使用后端返回的提交链接，避免前端重复拼装。 */
 function buildCommitUrl(commit: UserProfileCommitItemDto) {
   return commit.commit_url || null
 }
 
-/** 统一提交入口文案，避免页面暴露原始 sha。 */
+/** 统一提交入口文案，不直接暴露原始提交标识。 */
 function getCommitLabel(commit: UserProfileCommitItemDto) {
   return commit.commit_url ? "查看提交" : "-"
 }
 
-/** 将 AI 记录状态转换为中文标签。 */
+/** 将 AI 记录状态翻译为中文标签。 */
 function aiStatusLabel(status: UserProfileAIRecordItemDto["status"]) {
   if (status === "fully_matched") return "已匹配"
   if (status === "partially_matched") return "部分匹配"
@@ -58,7 +59,7 @@ function aiStatusLabel(status: UserProfileAIRecordItemDto["status"]) {
   return status || "-"
 }
 
-/** 统一显示 AI 工具名称。 */
+/** 统一展示 AI 工具名称。 */
 function formatAiTool(tool: string) {
   return tool || "-"
 }
@@ -73,14 +74,24 @@ function getUserAccountLabel(data: UserProfileDto) {
   return data.user.git_name || data.user.username || "-"
 }
 
-/** 渲染提交列表分页摘要。 */
+/** 提交分页摘要单独封装，避免模板重复。 */
 function getCommitPaginationSummary(data: UserProfileDto) {
   return `第 ${data.pagination.page} / ${Math.max(data.pagination.total_pages, 1)} 页（共 ${data.pagination.total} 条）`
 }
 
-/** 渲染 AI 记录分页摘要。 */
+/** AI 记录分页摘要单独封装，避免模板重复。 */
 function getAiPaginationSummary(data: UserProfileDto) {
   return `第 ${data.ai_records_pagination.page} / ${Math.max(data.ai_records_pagination.total_pages, 1)} 页（共 ${data.ai_records_pagination.total} 条）`
+}
+
+/** 将月份字符串向前偏移，用于默认展示近三个月趋势。 */
+function shiftMonth(value: string, delta: number): string {
+  const [y, m] = value.split("-")
+  const year = Number(y)
+  const month = Number(m)
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return value
+  const date = new Date(year, month - 1 + delta, 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 }
 
 export default function UserProfilePage() {
@@ -94,10 +105,16 @@ export default function UserProfilePage() {
 
   const initialYear = yearParam ? Number(yearParam) : undefined
   const initialMonth = monthParam ? Number(monthParam) : undefined
+  const periodMonth =
+    initialYear && initialMonth
+      ? `${initialYear}-${String(initialMonth).padStart(2, "0")}`
+      : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
 
   const [activeTab, setActiveTab] = useState<DetailTab>("commits")
   const [commitPage, setCommitPage] = useState(1)
   const [aiPage, setAiPage] = useState(1)
+  const [trendStartMonth, setTrendStartMonth] = useState(shiftMonth(periodMonth, -2))
+  const [trendEndMonth, setTrendEndMonth] = useState(periodMonth)
   const [data, setData] = useState<UserProfileDto | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -105,7 +122,9 @@ export default function UserProfilePage() {
   useEffect(() => {
     setCommitPage(1)
     setAiPage(1)
-  }, [repoId, userId, initialYear, initialMonth])
+    setTrendStartMonth(shiftMonth(periodMonth, -2))
+    setTrendEndMonth(periodMonth)
+  }, [repoId, userId, periodMonth])
 
   useEffect(() => {
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -253,6 +272,7 @@ export default function UserProfilePage() {
                     <TabsList>
                       <TabsTrigger value="commits">最近提交代码</TabsTrigger>
                       <TabsTrigger value="ai-records">AI 代码记录</TabsTrigger>
+                      <TabsTrigger value="trend">趋势分析</TabsTrigger>
                     </TabsList>
                   </div>
                 </CardHeader>
@@ -394,6 +414,17 @@ export default function UserProfilePage() {
                         </Button>
                       </div>
                     </div>
+                  </TabsContent>
+
+                  <TabsContent value="trend" className="mt-0">
+                    <TrendChartPanel
+                      selectedItem={{ type: "user", id: userId, name: data.user.name }}
+                      selectedMonth={data.period}
+                      startMonth={trendStartMonth}
+                      endMonth={trendEndMonth}
+                      onStartMonthChange={setTrendStartMonth}
+                      onEndMonthChange={setTrendEndMonth}
+                    />
                   </TabsContent>
                 </CardContent>
               </Tabs>

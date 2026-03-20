@@ -1,79 +1,74 @@
+# syntax=docker/dockerfile:1.7
+
 FROM node:22-alpine AS base
 
 ARG ALPINE_MIRROR=mirrors.ustc.edu.cn
 ARG NPM_REGISTRY=https://registry.npmmirror.com
+
 ENV npm_config_registry=${NPM_REGISTRY}
 
-# Install dependencies only when needed
-FROM base AS deps
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
+# 安装运行时兼容依赖，并统一镜像源，避免后续阶段重复执行。
 RUN sed -i "s/dl-cdn.alpinelinux.org/${ALPINE_MIRROR}/g" /etc/apk/repositories \
   && apk add --no-cache libc6-compat
+
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
+# 仅复制依赖清单，尽可能稳定命中依赖安装缓存层。
+FROM base AS deps
+
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
-RUN \
-  if [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm config set registry ${NPM_REGISTRY} && pnpm i --frozen-lockfile; \
-  elif [ -f yarn.lock ]; then yarn config set registry ${NPM_REGISTRY} && yarn --frozen-lockfile; \
+
+# 使用 BuildKit 缓存包管理器下载目录，减少重复下载依赖的开销。
+RUN --mount=type=cache,target=/root/.npm \
+  --mount=type=cache,target=/root/.local/share/pnpm/store \
+  --mount=type=cache,target=/usr/local/share/.cache/yarn \
+  if [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm config set registry ${NPM_REGISTRY} && pnpm install --frozen-lockfile; \
+  elif [ -f yarn.lock ]; then yarn config set registry ${NPM_REGISTRY} && yarn install --frozen-lockfile; \
   elif [ -f package-lock.json ]; then npm config set registry ${NPM_REGISTRY} && npm ci; \
   else echo "Lockfile not found." && npm config set registry ${NPM_REGISTRY} && npm install; \
   fi
 
-# Rebuild the source code only when needed
+# 构建阶段在依赖层之后再复制业务代码，避免源码变更导致依赖层失效。
 FROM base AS builder
-WORKDIR /app
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8100
-ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 
-# Next.js collects completely anonymous telemetry data about general usage.
-# Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line in case you want to disable telemetry during the build.
-# ENV NEXT_TELEMETRY_DISABLED=1
-
-RUN \
+# 复用包管理器缓存执行前端构建，降低多次 build 的成本。
+RUN --mount=type=cache,target=/root/.npm \
+  --mount=type=cache,target=/root/.local/share/pnpm/store \
+  --mount=type=cache,target=/usr/local/share/.cache/yarn \
   if [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm run build; \
   elif [ -f yarn.lock ]; then yarn run build; \
   elif [ -f package-lock.json ]; then npm run build; \
   else npm run build; \
   fi
 
-# Production image, copy all the files and run next
-FROM base AS runner
-WORKDIR /app
+# 生产镜像只保留 Next.js standalone 产物与静态资源，缩小体积并减少无关文件。
+FROM node:22-alpine AS runner
+
+ARG ALPINE_MIRROR=mirrors.ustc.edu.cn
 
 ENV NODE_ENV=production
-# Uncomment the following line in case you want to disable telemetry during runtime.
-# ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN sed -i "s/dl-cdn.alpinelinux.org/${ALPINE_MIRROR}/g" /etc/apk/repositories \
+  && apk add --no-cache libc6-compat \
+  && addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 nextjs
+
+WORKDIR /app
 
 COPY --from=builder /app/public ./public
-
-# Set the correct permission for prerender cache
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
-
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-# COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-# COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# As we might not be using standalone mode, let's copy the entire .next folder and node_modules
-# To use standalone mode, add output: 'standalone' to next.config.js
-COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs
 
 EXPOSE 3000
 
-ENV PORT=3000
-# set hostname to localhost
-ENV HOSTNAME="0.0.0.0"
-
-CMD ["npm", "start"]
+CMD ["node", "server.js"]

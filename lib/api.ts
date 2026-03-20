@@ -762,6 +762,8 @@ export function fetchAICommitsByUser(
 export interface DataPointMetric {
   year: number
   month: number
+  day: number
+  date: string
   total_lines: number
   ai_lines: number
   human_lines: number
@@ -808,6 +810,21 @@ export interface DepartmentTrendResponse {
   summary: SummaryMetrics
 }
 
+export interface UserTrendResponse {
+  entity: {
+    type: "user"
+    id: number
+    name: string
+    department_name: string
+  }
+  period: {
+    start: string
+    end: string
+  }
+  data_points: DataPointMetric[]
+  summary: SummaryMetrics
+}
+
 export function fetchRepoTrend(
   options: {
     repo_id?: number
@@ -834,5 +851,21 @@ export function fetchDepartmentTrend(
 ): Promise<DepartmentTrendResponse> {
   return getJson<DepartmentTrendResponse>(
     `/metrics/departments/trend?department_id=${options.department_id}&start_year=${options.start_year}&start_month=${options.start_month}&end_year=${options.end_year}&end_month=${options.end_month}`,
+  )
+}
+
+export function fetchUserTrend(
+  options: {
+    user_id: number
+    repo_id?: number
+    start_year: number
+    start_month: number
+    end_year: number
+    end_month: number
+  },
+): Promise<UserTrendResponse> {
+  const repoId = options.repo_id ?? -1
+  return getJson<UserTrendResponse>(
+    `/metrics/users/trend?user_id=${options.user_id}&repo_id=${repoId}&start_year=${options.start_year}&start_month=${options.start_month}&end_year=${options.end_year}&end_month=${options.end_month}`,
   )
 }
