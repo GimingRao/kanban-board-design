@@ -29,9 +29,6 @@ interface Tab {
 const tabs: Tab[] = [
   { id: "ai-ratio", label: "AI 代码占比" },
   { id: "dept-users", label: "用户与部门管理" },
-  { id: "skills", label: "技能管理" },
-  { id: "mcp-catalog", label: "MCP 市场" },
-  { id: "mcp", label: "MCP 服务" },
 ]
 
 interface HeaderProps {

@@ -13,7 +13,7 @@ echo "代码已更新"
 
 echo "构建 Docker 镜像..."
 # 前端 API 地址在构建期注入；启用 Nginx 后建议改为 https://api.example.com。
-API_BASE_URL="${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:13136/api}"
+API_BASE_URL="${NEXT_PUBLIC_API_BASE_URL:-http://192.168.2.121:13136/api}"
 # 宿主机绑定地址默认保持对外开放；接入 Nginx 后可改为 127.0.0.1。
 HOST_BIND_IP="${HOST_BIND_IP:-0.0.0.0}"
 

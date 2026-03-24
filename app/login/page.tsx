@@ -97,7 +97,7 @@ export default function LoginPage() {
               </label>
               <input
                 id="email"
-                type="email"
+                type="text"
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
