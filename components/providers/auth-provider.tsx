@@ -28,7 +28,7 @@ interface AuthContextValue {
   status: AuthStatus
   refreshCurrentUser: () => Promise<CurrentUserDto | null>
   setCurrentUser: (user: CurrentUserDto | null) => void
-  signIn: (email: string, password: string) => Promise<CurrentUserDto>
+  signIn: (workerId: string, password: string) => Promise<CurrentUserDto>
   signOut: () => Promise<void>
 }
 
@@ -38,20 +38,25 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const [currentUser, setCurrentUser] = useState<CurrentUserDto | null>(null)
+  const [currentUser, setCurrentUserState] = useState<CurrentUserDto | null>(null)
   const [status, setStatus] = useState<AuthStatus>("loading")
+
+  // 统一写入当前用户，并同步鉴权状态，避免页面侧只改用户对象却遗漏状态机。
+  const setCurrentUser = (user: CurrentUserDto | null) => {
+    setCurrentUserState(user)
+    setStatus(user ? "authenticated" : "unauthenticated")
+  }
 
   // 拉取当前登录用户，并把 401/403 状态归一到上下文中。
   const refreshCurrentUser = async () => {
     try {
       const user = await fetchCurrentUser()
-      setCurrentUser(user)
+      setCurrentUserState(user)
       setStatus("authenticated")
       return user
     } catch (error) {
       if (error instanceof ApiRequestError && error.status === 401) {
         setCurrentUser(null)
-        setStatus("unauthenticated")
         return null
       }
       if (
@@ -93,7 +98,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (detail.status === 401) {
         setCurrentUser(null)
-        setStatus("unauthenticated")
         if (!isPublicPath(pathname)) {
           router.replace(LOGIN_PATH)
         }
@@ -115,10 +119,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [pathname, router])
 
   // 登录成功后更新上下文，并按工号绑定状态跳转到对应页面。
-  const signIn = async (email: string, password: string) => {
-    const user = await apiLogin({ email, password })
+  const signIn = async (workerId: string, password: string) => {
+    const user = await apiLogin({ worker_id: workerId, password })
     setCurrentUser(user)
-    setStatus("authenticated")
     router.replace(getPostLoginPath(user))
     return user
   }

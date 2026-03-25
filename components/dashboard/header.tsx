@@ -36,9 +36,24 @@ interface HeaderProps {
   onTabChange: (tabId: string) => void
 }
 
-// 生成头像缩写，保证没有头像资源时也能清晰区分当前用户。
-function getUserInitials(name: string) {
-  return name.trim().slice(0, 2).toUpperCase() || "ME"
+// 生成头像缩写，兼容新建最小账号资料为空的场景，避免页面因空值崩溃。
+function getUserInitials(name?: string | null) {
+  const normalizedName = name?.trim()
+  return normalizedName ? normalizedName.slice(0, 2).toUpperCase() : "ME"
+}
+
+// 统一生成当前用户展示名称，缺少姓名时优先回退到工号，再回退到通用文案。
+function getUserDisplayName(user: { name?: string | null; worker_id?: string | null }) {
+  const normalizedName = user.name?.trim()
+  if (normalizedName) return normalizedName
+  if (user.worker_id?.trim()) return `工号 ${user.worker_id.trim()}`
+  return "未命名用户"
+}
+
+// 统一生成当前用户副标题，优先展示邮箱，没有邮箱时给出说明文案。
+function getUserSecondaryText(user: { email?: string | null }) {
+  const normalizedEmail = user.email?.trim()
+  return normalizedEmail || "未填写邮箱"
 }
 
 export function Header({ activeTab, onTabChange }: HeaderProps) {
@@ -151,10 +166,10 @@ export function Header({ activeTab, onTabChange }: HeaderProps) {
                     </Avatar>
                     <span className="hidden text-left sm:block">
                       <span className="block max-w-[132px] truncate text-sm font-medium text-foreground">
-                        {currentUser.name}
+                        {getUserDisplayName(currentUser)}
                       </span>
                       <span className="block max-w-[132px] truncate text-xs text-muted-foreground">
-                        {currentUser.email}
+                        {getUserSecondaryText(currentUser)}
                       </span>
                     </span>
                   </button>
@@ -162,9 +177,9 @@ export function Header({ activeTab, onTabChange }: HeaderProps) {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>
                     <div className="space-y-1">
-                      <div className="text-sm font-medium">{currentUser.name}</div>
+                      <div className="text-sm font-medium">{getUserDisplayName(currentUser)}</div>
                       <div className="text-xs font-normal text-muted-foreground">
-                        {currentUser.email}
+                        {getUserSecondaryText(currentUser)}
                       </div>
                     </div>
                   </DropdownMenuLabel>

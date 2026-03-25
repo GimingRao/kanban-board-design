@@ -97,6 +97,10 @@ async function requestJson<T>(
       if (error instanceof Error && error.name === "AbortError") {
         throw error
       }
+      // 已收到后端的 HTTP 响应时直接抛出业务错误，避免被备用地址的网络错误覆盖。
+      if (error instanceof ApiRequestError) {
+        throw error
+      }
       lastError = error
     }
   }
@@ -442,8 +446,8 @@ export interface WorkerProfileDto {
 
 export interface CurrentUserDto {
   id: number
-  name: string
-  email: string
+  name?: string | null
+  email?: string | null
   git_name?: string | null
   worker_id?: string | null
   status?: string | null
@@ -457,6 +461,31 @@ export interface ApiEnvelopeDto<T> {
   code: string
   message: string
   data: T
+}
+
+export interface LoginResolutionRequiredDto {
+  worker_id: string
+}
+
+export interface LoginCandidateDto {
+  id: number
+  name?: string | null
+  email?: string | null
+  git_name?: string | null
+  has_commits: boolean
+  commit_count: number
+  last_commit_at?: string | null
+}
+
+export interface LoginCandidatesDto {
+  items: LoginCandidateDto[]
+}
+
+export interface ResolveLoginDto {
+  worker_id: string
+  password: string
+  action: "claim_existing" | "create_new"
+  candidate_user_id?: number
 }
 
 // 认证相关接口统一走 /api/v1 前缀，避免与现有业务接口路径混淆。
@@ -526,12 +555,43 @@ export function bindUserWorkerProfile(
 }
 
 export function login(
-  data: { email: string; password: string },
+  data: { worker_id: string; password: string },
   signal?: AbortSignal,
 ): Promise<CurrentUserDto> {
   return postJson<ApiEnvelopeDto<CurrentUserDto>>(`${AUTH_API_PREFIX}/login`, data, signal).then(
     unwrapApiEnvelope,
   )
+}
+
+// 搜索尚未绑定工号的历史账号，供登录分流页认领旧账号使用。
+export function searchLoginCandidates(
+  query: string,
+  limit = 20,
+  signal?: AbortSignal,
+): Promise<LoginCandidateDto[]> {
+  const searchParams = new URLSearchParams()
+  if (query.trim()) {
+    searchParams.set("query", query.trim())
+  }
+  searchParams.set("limit", String(limit))
+  const searchQuery = searchParams.toString()
+
+  return getJson<ApiEnvelopeDto<LoginCandidatesDto>>(
+    `${AUTH_API_PREFIX}/login/candidates${searchQuery ? `?${searchQuery}` : ""}`,
+    signal,
+  ).then((response) => response.data.items ?? [])
+}
+
+// 在工号未绑定时执行认领旧账号或直接新建账号，并返回已登录用户信息。
+export function resolveLogin(
+  data: ResolveLoginDto,
+  signal?: AbortSignal,
+): Promise<CurrentUserDto> {
+  return postJson<ApiEnvelopeDto<CurrentUserDto>>(
+    `${AUTH_API_PREFIX}/login/resolve`,
+    data,
+    signal,
+  ).then(unwrapApiEnvelope)
 }
 
 export function logout(signal?: AbortSignal): Promise<{ success: boolean }> {

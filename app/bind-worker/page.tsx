@@ -53,7 +53,7 @@ export default function BindWorkerPage() {
                 绑定你的工号
               </h1>
               <p className="mt-2 text-sm leading-7 text-slate-600">
-                {currentUser?.name || currentUser?.email || "当前账号"} 尚未完成工号绑定。绑定后才能进入首页并查看个人统计。
+                {currentUser?.name || currentUser?.email || "当前账号"} 尚未完成工号绑定。该页面当前仅保留为兼容入口，输入工号后即可直接完成绑定。
               </p>
             </div>
 
@@ -68,7 +68,7 @@ export default function BindWorkerPage() {
 
           <div className="mt-6">
             <WorkerProfileBinding
-              description="请搜索并选择正确的员工档案，确认后完成当前登录账号与工号的绑定。"
+              description="请输入工号并确认绑定。系统会校验工号格式和唯一性，不再搜索人员目录。"
               saving={saving}
               error={saveError}
               confirmLabel="确认绑定"

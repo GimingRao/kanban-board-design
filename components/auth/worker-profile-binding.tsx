@@ -2,9 +2,6 @@
 
 import { useEffect, useRef, useState } from "react"
 
-import { fetchWorkerProfiles, type WorkerProfileDto } from "@/lib/api"
-import { cn } from "@/lib/utils"
-
 interface WorkerProfileBindingProps {
   title?: string
   description?: string
@@ -14,80 +11,28 @@ interface WorkerProfileBindingProps {
   onConfirm: (workerId: string) => void
 }
 
-// 统一格式化部门路径，避免多个绑定入口各自维护展示逻辑。
-function formatDepartmentPath(path: string[]) {
-  if (path.length === 0) return "未配置部门路径"
-  return path.join(" / ")
-}
-
+// 兼容旧绑定入口：仅负责收集工号输入，不再依赖人员目录搜索。
 export function WorkerProfileBinding({
   title = "绑定工号",
-  description = "请输入工号、姓名或邮箱，选择正确的员工档案后完成绑定。",
+  description = "请输入工号完成绑定。系统会校验工号格式以及是否已被其他账号占用。",
   saving = false,
   error = null,
   confirmLabel = "绑定工号",
   onConfirm,
 }: WorkerProfileBindingProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [query, setQuery] = useState("")
-  const [selectedProfile, setSelectedProfile] = useState<WorkerProfileDto | null>(null)
-  const [results, setResults] = useState<WorkerProfileDto[]>([])
-  const [searching, setSearching] = useState(false)
-  const [searchError, setSearchError] = useState<string | null>(null)
+  const [workerId, setWorkerId] = useState("")
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
 
-  useEffect(() => {
-    const trimmedQuery = query.trim()
-    if (!trimmedQuery) {
-      setResults([])
-      setSelectedProfile(null)
-      setSearching(false)
-      setSearchError(null)
-      return
-    }
-
-    const abortController = new AbortController()
-    const timer = window.setTimeout(() => {
-      setSearching(true)
-      setSearchError(null)
-
-      fetchWorkerProfiles(
-        {
-          query: trimmedQuery,
-          limit: 20,
-        },
-        abortController.signal,
-      )
-        .then((items) => {
-          if (abortController.signal.aborted) return
-          setResults(items)
-          setSelectedProfile((previous) => {
-            if (!previous) return previous
-            return items.find((item) => item.worker_id === previous.worker_id) ?? null
-          })
-        })
-        .catch((requestError: unknown) => {
-          if (abortController.signal.aborted) return
-          const message =
-            requestError instanceof Error ? requestError.message : "搜索工号目录失败"
-          setSearchError(message)
-          setResults([])
-        })
-        .finally(() => {
-          if (!abortController.signal.aborted) {
-            setSearching(false)
-          }
-        })
-    }, 250)
-
-    return () => {
-      abortController.abort()
-      window.clearTimeout(timer)
-    }
-  }, [query])
+  // 提交当前输入的工号，交由页面层统一处理绑定结果和错误提示。
+  const handleConfirm = () => {
+    const trimmedWorkerId = workerId.trim()
+    if (!trimmedWorkerId) return
+    onConfirm(trimmedWorkerId)
+  }
 
   return (
     <div className="space-y-4">
@@ -99,79 +44,25 @@ export function WorkerProfileBinding({
       <input
         ref={inputRef}
         type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="输入工号、姓名或邮箱"
+        value={workerId}
+        onChange={(event) => setWorkerId(event.target.value)}
+        placeholder="请输入工号，例如 001508"
         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
       />
 
-      {error && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-      )}
-      {searchError && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {searchError}
-        </p>
-      )}
-
-      <div className="min-h-[320px] rounded-xl border border-border bg-background/50">
-        {!query.trim() ? (
-          <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
-            输入关键词后显示工号目录候选项
-          </div>
-        ) : searching ? (
-          <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
-            正在搜索工号目录...
-          </div>
-        ) : results.length === 0 ? (
-          <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
-            未找到匹配的工号档案
-          </div>
-        ) : (
-          <div className="max-h-[320px] overflow-y-auto p-2">
-            <div className="space-y-2">
-              {results.map((profile) => {
-                const isSelected = selectedProfile?.worker_id === profile.worker_id
-
-                return (
-                  <button
-                    key={profile.worker_id}
-                    type="button"
-                    onClick={() => setSelectedProfile(profile)}
-                    className={cn(
-                      "w-full rounded-lg border px-4 py-3 text-left transition",
-                      isSelected
-                        ? "border-primary bg-primary/5 shadow-sm"
-                        : "border-transparent bg-background hover:bg-muted/60",
-                    )}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-foreground">{profile.name}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {profile.email || "未填写邮箱"}
-                        </div>
-                      </div>
-                      <div className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-foreground">
-                        工号：{profile.worker_id}
-                      </div>
-                    </div>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      部门路径：{formatDepartmentPath(profile.department_path)}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
+      <div className="rounded-xl border border-border bg-background/50 px-4 py-3 text-sm text-muted-foreground">
+        当前兼容入口已调整为直接输入工号绑定，不再搜索人员目录。
       </div>
+
+      {error ? (
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+      ) : null}
 
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={() => selectedProfile && onConfirm(selectedProfile.worker_id)}
-          disabled={saving || !selectedProfile}
+          onClick={handleConfirm}
+          disabled={saving || !workerId.trim()}
           className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "绑定中..." : confirmLabel}
