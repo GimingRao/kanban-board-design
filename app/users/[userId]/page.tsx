@@ -85,13 +85,29 @@ function getAiPaginationSummary(data: UserProfileDto) {
 }
 
 /** 将月份字符串向前偏移，用于默认展示近三个月趋势。 */
-function shiftMonth(value: string, delta: number): string {
-  const [y, m] = value.split("-")
-  const year = Number(y)
-  const month = Number(m)
-  if (!Number.isFinite(year) || !Number.isFinite(month)) return value
-  const date = new Date(year, month - 1 + delta, 1)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+/** 获取今天日期，限制趋势分析的结束日期不能超过当前自然日。 */
+function getTodayString(): string {
+  const today = new Date()
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+}
+
+/** 将日期偏移指定天数，用于默认展示最近一个月趋势。 */
+function shiftDate(value: string, deltaDays: number): string {
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return value
+  date.setDate(date.getDate() + deltaDays)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
+/** 比较两个日期字符串，确保趋势区间的起止关系始终正确。 */
+function compareDate(left: string, right: string) {
+  return left.localeCompare(right)
+}
+
+/** 将日期裁剪到今天之前，避免趋势分析误选未来日期。 */
+function clampToToday(value: string) {
+  const today = getTodayString()
+  return compareDate(value, today) > 0 ? today : value
 }
 
 export default function UserProfilePage() {
@@ -113,8 +129,8 @@ export default function UserProfilePage() {
   const [activeTab, setActiveTab] = useState<DetailTab>("commits")
   const [commitPage, setCommitPage] = useState(1)
   const [aiPage, setAiPage] = useState(1)
-  const [trendStartMonth, setTrendStartMonth] = useState(shiftMonth(periodMonth, -2))
-  const [trendEndMonth, setTrendEndMonth] = useState(periodMonth)
+  const [trendEndDate, setTrendEndDate] = useState(getTodayString())
+  const [trendStartDate, setTrendStartDate] = useState(shiftDate(getTodayString(), -29))
   const [data, setData] = useState<UserProfileDto | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -122,9 +138,27 @@ export default function UserProfilePage() {
   useEffect(() => {
     setCommitPage(1)
     setAiPage(1)
-    setTrendStartMonth(shiftMonth(periodMonth, -2))
-    setTrendEndMonth(periodMonth)
+    const today = getTodayString()
+    setTrendEndDate(today)
+    setTrendStartDate(shiftDate(today, -29))
   }, [repoId, userId, periodMonth])
+
+  /** 用户详情页同样保持趋势日期区间合法，避免出现倒置和未来日期。 */
+  function handleTrendStartDateChange(value: string) {
+    const safeStart = clampToToday(value)
+    setTrendStartDate(safeStart)
+    setTrendEndDate((current) => {
+      const safeCurrent = clampToToday(current)
+      return compareDate(safeCurrent, safeStart) < 0 ? safeStart : safeCurrent
+    })
+  }
+
+  /** 调整结束日期时同步修正开始日期，保证趋势图始终可查询。 */
+  function handleTrendEndDateChange(value: string) {
+    const safeEnd = clampToToday(value)
+    setTrendEndDate(safeEnd)
+    setTrendStartDate((current) => (compareDate(current, safeEnd) > 0 ? safeEnd : current))
+  }
 
   useEffect(() => {
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -419,11 +453,10 @@ export default function UserProfilePage() {
                   <TabsContent value="trend" className="mt-0">
                     <TrendChartPanel
                       selectedItem={{ type: "user", id: userId, name: data.user.name }}
-                      selectedMonth={data.period}
-                      startMonth={trendStartMonth}
-                      endMonth={trendEndMonth}
-                      onStartMonthChange={setTrendStartMonth}
-                      onEndMonthChange={setTrendEndMonth}
+                      startDate={trendStartDate}
+                      endDate={trendEndDate}
+                      onStartDateChange={handleTrendStartDateChange}
+                      onEndDateChange={handleTrendEndDateChange}
                     />
                   </TabsContent>
                 </CardContent>

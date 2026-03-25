@@ -54,6 +54,28 @@ function shiftMonth(value: string, delta: number): string {
   return `${y}-${m}`
 }
 
+/** 将月份字符串转换为自然月日期范围，供趋势接口复用。 */
+/** 获取今天日期，用于限制当前月汇总查询不要落到未来日期。*/
+function getTodayString(): string {
+  const today = new Date()
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+}
+
+/** 比较两个日期字符串，便于将自然月结束日裁剪到今天。*/
+function compareDate(left: string, right: string) {
+  return left.localeCompare(right)
+}
+
+function getMonthDateRange(value: string) {
+  const parsed = parseMonth(value)
+  if (!parsed) return null
+  const start = `${parsed.year}-${String(parsed.month).padStart(2, "0")}-01`
+  const end = new Date(parsed.year, parsed.month, 0)
+  const naturalEnd = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`
+  const endDate = compareDate(naturalEnd, getTodayString()) > 0 ? getTodayString() : naturalEnd
+  return { start, end: endDate }
+}
+
 // 仪表盘主页，适配后端最新的趋势接口与 AI 排行榜接口。
 export function DashboardContent({}: DashboardContentProps = {}) {
   const [repos, setRepos] = useState<RepoDto[]>([])
@@ -109,6 +131,11 @@ export function DashboardContent({}: DashboardContentProps = {}) {
     const endIdx = monthIndex(endParsed)
     const safeStartIdx = Math.min(startIdx, endIdx)
     const safeEndIdx = Math.max(startIdx, endIdx)
+    const safeStartMonth = `${Math.floor(safeStartIdx / 12)}-${String((safeStartIdx % 12) + 1).padStart(2, "0")}`
+    const safeEndMonth = `${Math.floor(safeEndIdx / 12)}-${String((safeEndIdx % 12) + 1).padStart(2, "0")}`
+    const startRange = getMonthDateRange(safeStartMonth)
+    const endRange = getMonthDateRange(safeEndMonth)
+    if (!startRange || !endRange) return
 
     let cancelled = false
     setLoadingMonthly(true)
@@ -116,10 +143,8 @@ export function DashboardContent({}: DashboardContentProps = {}) {
 
     fetchRepoTrend({
       repo_id: repoId,
-      start_year: Math.floor(safeStartIdx / 12),
-      start_month: (safeStartIdx % 12) + 1,
-      end_year: Math.floor(safeEndIdx / 12),
-      end_month: (safeEndIdx % 12) + 1,
+      start_date: startRange.start,
+      end_date: endRange.end,
     })
       .then((monthlyData) => {
         if (cancelled) return
@@ -167,8 +192,8 @@ export function DashboardContent({}: DashboardContentProps = {}) {
     const repoId = Number(selectedRepo)
     if (!Number.isFinite(repoId) || repoId === 0) return
 
-    const parsedMonth = parseMonth(selectedMonth)
-    if (!parsedMonth) return
+    const monthRange = getMonthDateRange(selectedMonth)
+    if (!monthRange) return
 
     let cancelled = false
     setLoadingLeaderboard(true)
@@ -178,17 +203,15 @@ export function DashboardContent({}: DashboardContentProps = {}) {
       fetchAIRatioUserLeaderboard({
         repo_id: repoId,
         sort: "ai_ratio",
-        year: parsedMonth.year,
-        month: parsedMonth.month,
+        year: Number(selectedMonth.split("-")[0]),
+        month: Number(selectedMonth.split("-")[1]),
         page: 1,
         page_size: 20,
       }),
       fetchRepoTrend({
         repo_id: repoId,
-        start_year: parsedMonth.year,
-        start_month: parsedMonth.month,
-        end_year: parsedMonth.year,
-        end_month: parsedMonth.month,
+        start_date: monthRange.start,
+        end_date: monthRange.end,
       }),
     ])
       .then(([leaderboardData, totalsData]) => {

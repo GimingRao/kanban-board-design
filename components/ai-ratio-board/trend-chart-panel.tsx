@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts"
 
+import { Input } from "@/components/ui/input"
 import {
   fetchDepartmentTrend,
   fetchRepoTrend,
@@ -22,34 +23,30 @@ import type { SelectedItem } from "./leaderboard-panel"
 
 export interface TrendChartPanelProps {
   selectedItem: SelectedItem | null
-  selectedMonth: string
-  startMonth: string
-  endMonth: string
-  onStartMonthChange: (month: string) => void
-  onEndMonthChange: (month: string) => void
+  startDate: string
+  endDate: string
+  onStartDateChange: (date: string) => void
+  onEndDateChange: (date: string) => void
 }
 
-/** 解析月份字符串，统一复用给趋势查询参数。 */
-function parseMonth(value: string): { year: number; month: number } | null {
-  const [y, m] = value.split("-")
-  const year = Number(y)
-  const month = Number(m)
-  if (!Number.isFinite(year) || !Number.isFinite(month)) return null
-  if (month < 1 || month > 12) return null
-  return { year, month }
-}
-
-/** 将日维度日期缩短为月-日，减少横轴拥挤。 */
-function formatAxisDate(value: string) {
+/** 解析日期字符串，确保趋势筛选区间始终是合法日期。 */
+function parseDate(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
   const date = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return value
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+/** 压缩横轴日期文案，避免趋势点过多时标签拥挤。 */
+function formatAxisDate(value: string) {
+  const date = parseDate(value)
+  if (!date) return value
   return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 }
 
-/** 提示框里展示完整的中文日期。 */
+/** 提示框中展示完整日期，便于按天查看趋势。 */
 function formatTooltipDate(value: string) {
-  const date = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return value
+  const date = parseDate(value)
+  if (!date) return value
   return date.toLocaleDateString("zh-CN", {
     year: "numeric",
     month: "2-digit",
@@ -57,22 +54,42 @@ function formatTooltipDate(value: string) {
   })
 }
 
+/** 卡片头部显示更易读的日期范围摘要。 */
+function formatRangeDate(value: string) {
+  const date = parseDate(value)
+  if (!date) return value
+  return date.toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+}
+
+/** 统一获取今天日期，用于限制结束日期上限。 */
+function getTodayString() {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, "0")
+  const day = String(today.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 export function TrendChartPanel({
   selectedItem,
-  selectedMonth,
-  startMonth,
-  endMonth,
-  onStartMonthChange,
-  onEndMonthChange,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
 }: TrendChartPanelProps) {
   const [dataPoints, setDataPoints] = useState<DataPointMetric[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const today = getTodayString()
 
-  /** 根据当前选中的对象加载按日趋势数据。 */
+  /** 根据真实日期范围加载趋势数据。 */
   useEffect(() => {
-    const start = parseMonth(startMonth)
-    const end = parseMonth(endMonth)
+    const start = parseDate(startDate)
+    const end = parseDate(endDate)
     if (!start || !end) return
 
     let cancelled = false
@@ -85,27 +102,21 @@ export function TrendChartPanel({
       fetchTrend = () =>
         fetchDepartmentTrend({
           department_id: selectedItem.id,
-          start_year: start.year,
-          start_month: start.month,
-          end_year: end.year,
-          end_month: end.month,
+          start_date: startDate,
+          end_date: endDate,
         })
     } else if (selectedItem?.type === "user") {
       fetchTrend = () =>
         fetchUserTrend({
           user_id: selectedItem.id,
-          start_year: start.year,
-          start_month: start.month,
-          end_year: end.year,
-          end_month: end.month,
+          start_date: startDate,
+          end_date: endDate,
         })
     } else {
       fetchTrend = () =>
         fetchRepoTrend({
-          start_year: start.year,
-          start_month: start.month,
-          end_year: end.year,
-          end_month: end.month,
+          start_date: startDate,
+          end_date: endDate,
         })
     }
 
@@ -127,25 +138,25 @@ export function TrendChartPanel({
     return () => {
       cancelled = true
     }
-  }, [selectedItem, startMonth, endMonth])
+  }, [selectedItem, startDate, endDate])
 
-  /** 将后端趋势点转换为图表直接消费的数据结构。 */
+  /** 将趋势点转换成图表渲染结构。 */
   const chartData = useMemo(() => {
-    return dataPoints.map((dp) => ({
-      date: dp.date,
-      dateLabel: formatAxisDate(dp.date),
-      ai_ratio: dp.ai_ratio,
-      total_lines: dp.total_lines,
-      ai_lines: dp.ai_lines,
-      commits_count: dp.commits_count,
+    return dataPoints.map((point) => ({
+      date: point.date,
+      dateLabel: formatAxisDate(point.date),
+      ai_ratio: point.ai_ratio,
+      total_lines: point.total_lines,
+      ai_lines: point.ai_lines,
+      commits_count: point.commits_count,
     }))
   }, [dataPoints])
 
-  /** 使用整个区间的累计值计算更稳定的平均 AI 占比。 */
+  /** 使用累计值计算区间平均 AI 占比，避免简单均值失真。 */
   const avgRatio = useMemo(() => {
     if (dataPoints.length === 0) return 0
-    const totalLines = dataPoints.reduce((sum, dp) => sum + dp.total_lines, 0)
-    const aiLines = dataPoints.reduce((sum, dp) => sum + dp.ai_lines, 0)
+    const totalLines = dataPoints.reduce((sum, point) => sum + point.total_lines, 0)
+    const aiLines = dataPoints.reduce((sum, point) => sum + point.ai_lines, 0)
     return totalLines > 0 ? (aiLines / totalLines) * 100 : 0
   }, [dataPoints])
 
@@ -160,7 +171,7 @@ export function TrendChartPanel({
             <p className="mt-1 text-sm text-muted-foreground">{trendTitle}</p>
           </div>
           <div className="rounded-2xl border border-border/70 bg-secondary/35 px-3 py-2 text-sm text-muted-foreground">
-            当前对齐月份：{selectedMonth}
+            统计区间：{formatRangeDate(startDate)} 至 {formatRangeDate(endDate)}
           </div>
         </div>
 
@@ -232,31 +243,42 @@ export function TrendChartPanel({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-        <div className="rounded-[1.35rem] border border-border/70 bg-card/90 p-4">
-          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">开始月份</div>
-          <input
-            type="month"
-            value={startMonth}
-            onChange={(e) => onStartMonthChange(e.target.value)}
-            className="mt-3 h-11 w-full rounded-2xl border border-border/70 bg-card px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/40"
+        <div className="glass-panel rounded-[1.35rem] p-4">
+          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            开始日期
+          </div>
+          <Input
+            type="date"
+            value={startDate}
+            max={endDate > today ? today : endDate}
+            onChange={(event) => onStartDateChange(event.target.value)}
+            className="mt-3 h-11 rounded-2xl border-border/70 bg-card/90 shadow-none"
           />
         </div>
 
-        <div className="rounded-[1.35rem] border border-border/70 bg-card/90 p-4">
-          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">结束月份</div>
-          <input
-            type="month"
-            value={endMonth}
-            onChange={(e) => onEndMonthChange(e.target.value)}
-            className="mt-3 h-11 w-full rounded-2xl border border-border/70 bg-card px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/40"
+        <div className="glass-panel rounded-[1.35rem] p-4">
+          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            结束日期
+          </div>
+          <Input
+            type="date"
+            value={endDate}
+            min={startDate}
+            max={today}
+            onChange={(event) => onEndDateChange(event.target.value)}
+            className="mt-3 h-11 rounded-2xl border-border/70 bg-card/90 shadow-none"
           />
         </div>
 
         <div className="rounded-[1.35rem] border border-border/70 bg-secondary/35 p-5">
-          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">区间平均 AI 占比</div>
-          <div className="mt-3 text-4xl font-semibold tracking-tight text-accent">{avgRatio.toFixed(1)}%</div>
+          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            区间平均 AI 占比
+          </div>
+          <div className="mt-3 text-4xl font-semibold tracking-tight text-accent">
+            {avgRatio.toFixed(1)}%
+          </div>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            现在趋势按天展示，更适合观察短期波动和异常峰值。
+            趋势图现在按天展示，默认聚焦最近一个月，更适合观察短期波动和异常峰值。
           </p>
         </div>
       </div>

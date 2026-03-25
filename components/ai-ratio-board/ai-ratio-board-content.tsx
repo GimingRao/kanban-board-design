@@ -14,57 +14,86 @@ import { fetchRepoTrend, type SummaryMetrics } from "@/lib/api"
 
 import type { SelectedItem } from "@/components/ai-ratio-board/leaderboard-panel"
 
-// 获取当前月份，作为页面筛选的默认值。
+/** 获取当前月份，作为顶部月份筛选器的默认值。 */
 function getCurrentMonth(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  return `${y}-${m}`
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  return `${year}-${month}`
 }
 
-// 按月份偏移，生成趋势图的起止月份。
-function shiftMonth(value: string, delta: number): string {
-  const [y, m] = value.split("-")
-  const year = Number(y)
-  const month = Number(m)
-  const d = new Date(year, month - 1 + delta, 1)
-  const newY = d.getFullYear()
-  const newM = String(d.getMonth() + 1).padStart(2, "0")
-  return `${newY}-${newM}`
+/** 获取今天日期，作为趋势分析结束日期的上限。 */
+function getTodayString(): string {
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
 }
 
-// 解析年月字符串，供接口参数复用。
+/** 将日期偏移指定天数，用于初始化最近一个月的趋势区间。 */
+function shiftDate(value: string, deltaDays: number): string {
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return value
+  date.setDate(date.getDate() + deltaDays)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+/** 比较两个日期字符串，便于维护合法的起止日期。 */
+function compareDate(left: string, right: string) {
+  return left.localeCompare(right)
+}
+
+/** 将用户输入裁剪到今天之前，避免结束日期选择未来时间。 */
+function clampToToday(value: string) {
+  const today = getTodayString()
+  return compareDate(value, today) > 0 ? today : value
+}
+
+/** 解析年月字符串，供顶部月份统计接口复用。 */
 function parseMonth(value: string): { year: number; month: number } | null {
-  const [y, m] = value.split("-")
-  const year = Number(y)
-  const month = Number(m)
+  const [yearText, monthText] = value.split("-")
+  const year = Number(yearText)
+  const month = Number(monthText)
   if (!Number.isFinite(year) || !Number.isFinite(month)) return null
   if (month < 1 || month > 12) return null
   return { year, month }
 }
 
+/** 生成指定月份的自然月起止日期，用于月度汇总查询。 */
+function getMonthDateRange(value: string) {
+  const parsed = parseMonth(value)
+  if (!parsed) return null
+  const start = `${parsed.year}-${String(parsed.month).padStart(2, "0")}-01`
+  const end = new Date(parsed.year, parsed.month, 0)
+  const naturalEnd = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`
+  const endDate = clampToToday(naturalEnd)
+  return { start, end: endDate }
+}
+
 export function AiRatioBoardContent() {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
-  const [chartStartMonth, setChartStartMonth] = useState(shiftMonth(getCurrentMonth(), -11))
-  const [chartEndMonth, setChartEndMonth] = useState(getCurrentMonth())
+  const [chartEndDate, setChartEndDate] = useState(getTodayString())
+  const [chartStartDate, setChartStartDate] = useState(shiftDate(getTodayString(), -29))
   const [selectedLeaderboardItem, setSelectedLeaderboardItem] = useState<SelectedItem | null>(null)
   const [totals, setTotals] = useState<SummaryMetrics | null>(null)
   const [totalsLoading, setTotalsLoading] = useState(false)
   const [detailTab, setDetailTab] = useState<"commits" | "trend">("commits")
 
-  // 根据当前月份同步顶部概览指标。
+  /** 根据当前月份同步顶部概览指标。 */
   useEffect(() => {
-    const parsed = parseMonth(selectedMonth)
-    if (!parsed) return
+    const monthRange = getMonthDateRange(selectedMonth)
+    if (!monthRange) return
 
     let cancelled = false
     setTotalsLoading(true)
 
     fetchRepoTrend({
-      start_year: parsed.year,
-      start_month: parsed.month,
-      end_year: parsed.year,
-      end_month: parsed.month,
+      start_date: monthRange.start,
+      end_date: monthRange.end,
     })
       .then((result) => {
         if (cancelled) return
@@ -83,6 +112,23 @@ export function AiRatioBoardContent() {
       cancelled = true
     }
   }, [selectedMonth])
+
+  /** 调整开始日期时，自动修正结束日期并保持不超过今天。 */
+  function handleChartStartDateChange(value: string) {
+    const safeStart = clampToToday(value)
+    setChartStartDate(safeStart)
+    setChartEndDate((current) => {
+      const safeCurrent = clampToToday(current)
+      return compareDate(safeCurrent, safeStart) < 0 ? safeStart : safeCurrent
+    })
+  }
+
+  /** 调整结束日期时，自动修正开始日期并限制结束日期最大为今天。 */
+  function handleChartEndDateChange(value: string) {
+    const safeEnd = clampToToday(value)
+    setChartEndDate(safeEnd)
+    setChartStartDate((current) => (compareDate(current, safeEnd) > 0 ? safeEnd : current))
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden pb-4">
@@ -139,11 +185,10 @@ export function AiRatioBoardContent() {
             <TabsContent value="trend" className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <TrendChartPanel
                 selectedItem={selectedLeaderboardItem}
-                selectedMonth={selectedMonth}
-                startMonth={chartStartMonth}
-                endMonth={chartEndMonth}
-                onStartMonthChange={setChartStartMonth}
-                onEndMonthChange={setChartEndMonth}
+                startDate={chartStartDate}
+                endDate={chartEndDate}
+                onStartDateChange={handleChartStartDateChange}
+                onEndDateChange={handleChartEndDateChange}
               />
             </TabsContent>
           </Tabs>

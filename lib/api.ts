@@ -888,29 +888,25 @@ export interface UserTrendResponse {
 export function fetchRepoTrend(
   options: {
     repo_id?: number
-    start_year: number
-    start_month: number
-    end_year: number
-    end_month: number
+    start_date: string
+    end_date: string
   },
 ): Promise<RepoTrendResponse> {
   const repoId = options.repo_id ?? -1
   return getJson<RepoTrendResponse>(
-    `/metrics/repos/trend?repo_id=${repoId}&start_year=${options.start_year}&start_month=${options.start_month}&end_year=${options.end_year}&end_month=${options.end_month}`,
+    `/metrics/repos/trend?repo_id=${repoId}&start_date=${options.start_date}&end_date=${options.end_date}`,
   )
 }
 
 export function fetchDepartmentTrend(
   options: {
     department_id: number
-    start_year: number
-    start_month: number
-    end_year: number
-    end_month: number
+    start_date: string
+    end_date: string
   },
 ): Promise<DepartmentTrendResponse> {
   return getJson<DepartmentTrendResponse>(
-    `/metrics/departments/trend?department_id=${options.department_id}&start_year=${options.start_year}&start_month=${options.start_month}&end_year=${options.end_year}&end_month=${options.end_month}`,
+    `/metrics/departments/trend?department_id=${options.department_id}&start_date=${options.start_date}&end_date=${options.end_date}`,
   )
 }
 
@@ -918,14 +914,12 @@ export function fetchUserTrend(
   options: {
     user_id: number
     repo_id?: number
-    start_year: number
-    start_month: number
-    end_year: number
-    end_month: number
+    start_date: string
+    end_date: string
   },
 ): Promise<UserTrendResponse> {
   const repoId = options.repo_id ?? -1
   return getJson<UserTrendResponse>(
-    `/metrics/users/trend?user_id=${options.user_id}&repo_id=${repoId}&start_year=${options.start_year}&start_month=${options.start_month}&end_year=${options.end_year}&end_month=${options.end_month}`,
+    `/metrics/users/trend?user_id=${options.user_id}&repo_id=${repoId}&start_date=${options.start_date}&end_date=${options.end_date}`,
   )
 }
