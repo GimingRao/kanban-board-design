@@ -131,7 +131,8 @@ export function AiRatioBoardContent() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden pb-4">
+    <div className="flex min-h-0 flex-1 flex-col overflow-visible pb-6 lg:h-full lg:overflow-hidden lg:pb-4">
+      {/* 移动端改为页面级滚动，避免被固定高度和内部滚动容器锁死。 */}
       <AiRatioBoardHeader
         totals={
           totals
@@ -147,8 +148,8 @@ export function AiRatioBoardContent() {
         loading={totalsLoading}
       />
 
-      <main className="flex-1 overflow-hidden px-4 pb-2 sm:px-6">
-        <div className="grid h-full min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(340px,0.88fr)_minmax(0,1.42fr)]">
+      <main className="flex-1 overflow-visible px-4 pb-2 sm:px-6 lg:min-h-0 lg:overflow-hidden">
+        <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-full lg:grid-cols-[minmax(340px,0.88fr)_minmax(0,1.42fr)]">
           <div className="flex min-h-0 flex-col">
             <LeaderboardPanel
               selectedMonth={selectedMonth}
@@ -159,11 +160,11 @@ export function AiRatioBoardContent() {
           <Tabs
             value={detailTab}
             onValueChange={(value) => setDetailTab(value as "commits" | "trend")}
-            className="dashboard-panel flex h-full min-h-0 flex-col overflow-hidden p-3"
+            className="dashboard-panel flex min-h-0 flex-col overflow-visible p-3 lg:h-full lg:overflow-hidden"
           >
-            <div className="flex items-center justify-between gap-3 px-1 pb-1">
+            <div className="flex flex-col items-start gap-3 px-1 pb-1 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-lg font-semibold text-foreground">详情工作区</div>
-              <TabsList className="h-11 rounded-full bg-secondary/80 p-1">
+              <TabsList className="grid h-auto w-full grid-cols-2 rounded-full bg-secondary/80 p-1 sm:inline-flex sm:h-11 sm:w-auto">
                 <TabsTrigger value="commits" className="rounded-full px-4">
                   <GitCommitHorizontal className="h-4 w-4" />
                   变更明细
@@ -175,14 +176,20 @@ export function AiRatioBoardContent() {
               </TabsList>
             </div>
 
-            <TabsContent value="commits" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <TabsContent
+              value="commits"
+              className="flex flex-1 flex-col overflow-visible lg:min-h-0 lg:overflow-hidden"
+            >
               <CommitsPanel
                 selectedItem={selectedLeaderboardItem}
                 selectedMonth={selectedMonth}
               />
             </TabsContent>
 
-            <TabsContent value="trend" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <TabsContent
+              value="trend"
+              className="flex flex-1 flex-col overflow-visible lg:min-h-0 lg:overflow-hidden"
+            >
               <TrendChartPanel
                 selectedItem={selectedLeaderboardItem}
                 startDate={chartStartDate}

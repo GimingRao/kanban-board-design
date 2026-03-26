@@ -22,9 +22,10 @@ export default function Page() {
 
   return (
     <AuthGuard>
-      <div className="flex h-screen flex-col bg-background">
+      {/* 移动端允许页面自然撑高滚动，桌面端继续保持整屏仪表盘布局。 */}
+      <div className="flex min-h-screen flex-col bg-background lg:h-screen">
         <Header activeTab={activeTab} onTabChange={setActiveTab} />
-        <main className="min-h-0 flex-1 overflow-hidden">
+        <main className="flex-1 overflow-visible lg:min-h-0 lg:overflow-hidden">
           {renderContent()}
         </main>
       </div>

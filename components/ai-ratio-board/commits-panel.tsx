@@ -187,6 +187,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
 
   return (
     <section ref={panelRef} className="dashboard-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {/* 移动端取消内部主滚动区，避免与页面滚动冲突导致内容看不全。 */}
       {selectionSummary && (
         <div className="border-b border-border/60 px-4 pb-3 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.2rem] border border-border/70 bg-secondary/20 px-4 py-3">
@@ -199,7 +200,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto p-4">
+      <div className="overflow-visible p-4 lg:min-h-0 lg:flex-1 lg:overflow-auto">
         {!selectedItem ? (
           <div className="flex h-full min-h-[260px] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-border bg-secondary/20 px-6 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent">

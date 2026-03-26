@@ -162,7 +162,8 @@ export function LeaderboardPanel({
   const canNext = totalPages > 0 && page < totalPages
 
   return (
-    <section className="dashboard-panel flex h-full min-h-0 flex-col overflow-hidden">
+    <section className="dashboard-panel flex min-h-0 flex-col overflow-hidden lg:h-full">
+      {/* 移动端让排行榜内容自然展开，由页面统一滚动；桌面端保留面板内滚动。 */}
       <div className="border-b border-border/70 px-4 pb-3 pt-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -220,7 +221,7 @@ export function LeaderboardPanel({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div className="px-4 py-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         {loading ? (
           <LeaderboardSkeleton />
         ) : error ? (
