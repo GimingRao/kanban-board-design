@@ -16,10 +16,28 @@ echo "构建 Docker 镜像..."
 API_BASE_URL="${NEXT_PUBLIC_API_BASE_URL:-https://aihub.ronds.com/api}"
 # 宿主机绑定地址默认保持对外开放；接入 Nginx 后可改为 127.0.0.1。
 HOST_BIND_IP="${HOST_BIND_IP:-0.0.0.0}"
+BUILDER_NAME="${BUILDX_BUILDER_NAME:-kanban-board-builder}"
+CACHE_DIR="${BUILDX_CACHE_DIR:-$BASE_DIR/.buildx-cache}"
+CACHE_DIR_NEW="${CACHE_DIR}-new"
 
-DOCKER_BUILDKIT=1 docker build --progress=plain \
+echo "准备 buildx builder: $BUILDER_NAME"
+if ! docker buildx inspect "$BUILDER_NAME" >/dev/null 2>&1; then
+  docker buildx create --name "$BUILDER_NAME" --driver docker-container --use
+else
+  docker buildx use "$BUILDER_NAME"
+fi
+
+mkdir -p "$CACHE_DIR"
+rm -rf "$CACHE_DIR_NEW"
+
+DOCKER_BUILDKIT=1 docker buildx build --progress=plain --load \
   --build-arg NEXT_PUBLIC_API_BASE_URL="$API_BASE_URL" \
+  --cache-from "type=local,src=$CACHE_DIR" \
+  --cache-to "type=local,dest=$CACHE_DIR_NEW,mode=max" \
   -t kanban-board-design:latest .
+
+rm -rf "$CACHE_DIR"
+mv "$CACHE_DIR_NEW" "$CACHE_DIR"
 
 echo "镜像构建完成 (NEXT_PUBLIC_API_BASE_URL=$API_BASE_URL)"
 echo "宿主机端口绑定地址: $HOST_BIND_IP"

@@ -1,17 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Award, Crown, Medal, Search, Users } from "lucide-react"
+import { Award, Crown, Medal, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
@@ -20,6 +14,7 @@ import {
   fetchAIRatioUserLeaderboard,
   type AIRatioLeaderboardDto,
 } from "@/lib/api"
+import { DepartmentTreeSelector } from "./department-tree-selector"
 
 function LeaderboardSkeleton() {
   return (
@@ -102,29 +97,20 @@ export function LeaderboardPanel({
 }: LeaderboardPanelProps) {
   const [activeTab, setActiveTab] = useState<LeaderboardTab>("department")
   const [departmentLevel, setDepartmentLevel] = useState<DepartmentLevel>("level2")
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | null>(null)
   const [data, setData] = useState<AIRatioLeaderboardDto | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [searchInput, setSearchInput] = useState("")
-  const [searchKeyword, setSearchKeyword] = useState("")
   const [page, setPage] = useState(1)
   const [pageSize] = useState(20)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
-
-  /** 对用户搜索做轻量防抖，减少重复请求。 */
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setSearchKeyword(searchInput.trim())
-    }, 300)
-    return () => window.clearTimeout(timer)
-  }, [searchInput])
 
   /** 切换筛选条件后重置分页和右侧联动选中状态。 */
   useEffect(() => {
     setPage(1)
     setSelectedKey(null)
     onSelectedItemChange(null)
-  }, [startDate, endDate, activeTab, departmentLevel, searchKeyword, onSelectedItemChange])
+  }, [startDate, endDate, activeTab, departmentLevel, selectedDepartmentId, onSelectedItemChange])
 
   /** 根据当前筛选条件同步排行榜数据。 */
   useEffect(() => {
@@ -146,7 +132,7 @@ export function LeaderboardPanel({
             fetchAIRatioUserLeaderboard({
               start_date: startDate,
               end_date: endDate,
-              search: searchKeyword || undefined,
+              department_id: selectedDepartmentId ?? undefined,
               page,
               page_size: pageSize,
             })
@@ -169,7 +155,7 @@ export function LeaderboardPanel({
     return () => {
       cancelled = true
     }
-  }, [activeTab, startDate, endDate, departmentLevel, searchKeyword, page, pageSize])
+  }, [activeTab, startDate, endDate, departmentLevel, selectedDepartmentId, page, pageSize])
 
   const totalPages = data?.pagination.total_pages ?? 0
   const canPrev = page > 1
@@ -228,15 +214,7 @@ export function LeaderboardPanel({
             </div>
 
             {activeTab === "user" ? (
-              <div className="relative w-full max-w-[260px]">
-                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="搜索姓名或用户名"
-                  className="h-10 rounded-full border-border/70 bg-card/85 pl-11 shadow-none"
-                />
-              </div>
+              <DepartmentTreeSelector value={selectedDepartmentId} onChange={setSelectedDepartmentId} />
             ) : null}
           </div>
 

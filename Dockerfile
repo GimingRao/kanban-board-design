@@ -20,11 +20,11 @@ FROM base AS deps
 
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
 
-# 先把依赖下载到 pnpm store，避免源码变更时重新走完整下载流程
+# 依赖层直接产出 node_modules，避免 builder 阶段每次重新链接整个依赖树
 RUN --mount=type=cache,target=/root/.npm \
   --mount=type=cache,target=/root/.local/share/pnpm/store \
   --mount=type=cache,target=/usr/local/share/.cache/yarn \
-  if [ -f pnpm-lock.yaml ]; then pnpm config set registry ${NPM_REGISTRY} && pnpm fetch --frozen-lockfile; \
+  if [ -f pnpm-lock.yaml ]; then pnpm config set registry ${NPM_REGISTRY} && pnpm install --frozen-lockfile; \
   elif [ -f yarn.lock ]; then yarn config set registry ${NPM_REGISTRY} && yarn install --frozen-lockfile; \
   elif [ -f package-lock.json ]; then npm config set registry ${NPM_REGISTRY} && npm ci; \
   else echo "Lockfile not found." && npm config set registry ${NPM_REGISTRY} && npm install; \
@@ -34,16 +34,7 @@ RUN --mount=type=cache,target=/root/.npm \
 FROM base AS builder
 
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
-
-# 离线安装依赖，只从缓存仓库读取，减少重复网络请求
-RUN --mount=type=cache,target=/root/.npm \
-  --mount=type=cache,target=/root/.local/share/pnpm/store \
-  --mount=type=cache,target=/usr/local/share/.cache/yarn \
-  if [ -f pnpm-lock.yaml ]; then pnpm config set registry ${NPM_REGISTRY} && pnpm install --frozen-lockfile --offline; \
-  elif [ -f yarn.lock ]; then yarn config set registry ${NPM_REGISTRY} && yarn install --frozen-lockfile; \
-  elif [ -f package-lock.json ]; then npm config set registry ${NPM_REGISTRY} && npm ci; \
-  else echo "Lockfile not found." && npm config set registry ${NPM_REGISTRY} && npm install; \
-  fi
+COPY --from=deps /app/node_modules ./node_modules
 
 COPY . .
 

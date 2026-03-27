@@ -773,7 +773,6 @@ export function fetchAIRatioUserLeaderboard(
     month?: number
     start_date?: string
     end_date?: string
-    search?: string
     page?: number
     page_size?: number
   },
@@ -782,13 +781,15 @@ export function fetchAIRatioUserLeaderboard(
   const page = options.page ?? 1
   const pageSize = options.page_size ?? 20
   const sort = options.sort ?? "ai_ratio"
-  const deptQuery = options.department_id !== undefined ? `&department_id=${options.department_id}` : ""
-  const searchQuery = options.search !== undefined ? `&search=${encodeURIComponent(options.search)}` : ""
+  const deptQuery =
+    options.department_id !== undefined && options.department_id !== null
+      ? `&department_id=${options.department_id}`
+      : ""
 
   return getJson<AIRatioLeaderboardDto>(
     `/leaderboards/users?repo_id=${repoId}&sort=${sort}&page=${page}&page_size=${pageSize}${dateRangeQuery(
       options,
-    )}${monthAnchorQuery(options)}${deptQuery}${searchQuery}`,
+    )}${monthAnchorQuery(options)}${deptQuery}`,
   )
 }
 
