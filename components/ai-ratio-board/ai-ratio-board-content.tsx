@@ -1,28 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { GitCommitHorizontal, LineChart } from "lucide-react"
 
-import {
-  AiRatioBoardHeader,
-  CommitsPanel,
-  LeaderboardPanel,
-  TrendChartPanel,
-} from "@/components/ai-ratio-board"
+import { CommitsPanel, LeaderboardPanel, TrendChartPanel } from "@/components/ai-ratio-board"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { fetchRepoTrend, type SummaryMetrics } from "@/lib/api"
 
 import type { SelectedItem } from "@/components/ai-ratio-board/leaderboard-panel"
 
-/** 获取当前月份，作为顶部月份筛选器的默认值。 */
-function getCurrentMonth(): string {
-  const date = new Date()
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  return `${year}-${month}`
-}
-
-/** 获取今天日期，作为趋势分析结束日期的上限。 */
+/** 统一获取今天日期，作为默认区间结束时间和上限。 */
 function getTodayString(): string {
   const date = new Date()
   const year = date.getFullYear()
@@ -31,7 +17,7 @@ function getTodayString(): string {
   return `${year}-${month}-${day}`
 }
 
-/** 将日期偏移指定天数，用于初始化最近一个月的趋势区间。 */
+/** 按天偏移日期，用于初始化最近 30 天默认区间。 */
 function shiftDate(value: string, deltaDays: number): string {
   const date = new Date(`${value}T00:00:00`)
   if (Number.isNaN(date.getTime())) return value
@@ -42,78 +28,44 @@ function shiftDate(value: string, deltaDays: number): string {
   return `${year}-${month}-${day}`
 }
 
-/** 比较两个日期字符串，便于维护合法的起止日期。 */
+/** 比较两个日期字符串，便于维护合法的起止顺序。 */
 function compareDate(left: string, right: string) {
   return left.localeCompare(right)
 }
 
-/** 将用户输入裁剪到今天之前，避免结束日期选择未来时间。 */
+/** 将日期裁剪到今天之前，避免请求未来时间。 */
 function clampToToday(value: string) {
   const today = getTodayString()
   return compareDate(value, today) > 0 ? today : value
 }
 
-/** 解析年月字符串，供顶部月份统计接口复用。 */
-function parseMonth(value: string): { year: number; month: number } | null {
-  const [yearText, monthText] = value.split("-")
-  const year = Number(yearText)
-  const month = Number(monthText)
-  if (!Number.isFinite(year) || !Number.isFinite(month)) return null
-  if (month < 1 || month > 12) return null
-  return { year, month }
-}
-
-/** 生成指定月份的自然月起止日期，用于月度汇总查询。 */
-function getMonthDateRange(value: string) {
-  const parsed = parseMonth(value)
-  if (!parsed) return null
-  const start = `${parsed.year}-${String(parsed.month).padStart(2, "0")}-01`
-  const end = new Date(parsed.year, parsed.month, 0)
-  const naturalEnd = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`
-  const endDate = clampToToday(naturalEnd)
-  return { start, end: endDate }
-}
-
 export function AiRatioBoardContent() {
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
-  const [chartEndDate, setChartEndDate] = useState(getTodayString())
-  const [chartStartDate, setChartStartDate] = useState(shiftDate(getTodayString(), -29))
+  const today = getTodayString()
+  const [startDate, setStartDate] = useState(shiftDate(today, -29))
+  const [endDate, setEndDate] = useState(today)
+  const [chartEndDate, setChartEndDate] = useState(today)
+  const [chartStartDate, setChartStartDate] = useState(shiftDate(today, -29))
   const [selectedLeaderboardItem, setSelectedLeaderboardItem] = useState<SelectedItem | null>(null)
-  const [totals, setTotals] = useState<SummaryMetrics | null>(null)
-  const [totalsLoading, setTotalsLoading] = useState(false)
   const [detailTab, setDetailTab] = useState<"commits" | "trend">("commits")
 
-  /** 根据当前月份同步顶部概览指标。 */
-  useEffect(() => {
-    const monthRange = getMonthDateRange(selectedMonth)
-    if (!monthRange) return
-
-    let cancelled = false
-    setTotalsLoading(true)
-
-    fetchRepoTrend({
-      start_date: monthRange.start,
-      end_date: monthRange.end,
+  /** 调整排行榜开始日期时同步修正结束日期，确保区间始终有效。 */
+  function handleStartDateChange(value: string) {
+    const safeStart = clampToToday(value)
+    setStartDate(safeStart)
+    setEndDate((current) => {
+      const safeCurrent = clampToToday(current)
+      return compareDate(safeCurrent, safeStart) < 0 ? safeStart : safeCurrent
     })
-      .then((result) => {
-        if (cancelled) return
-        setTotals(result.summary)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        console.error("Failed to fetch totals:", err)
-        setTotals(null)
-      })
-      .finally(() => {
-        if (!cancelled) setTotalsLoading(false)
-      })
+  }
 
-    return () => {
-      cancelled = true
-    }
-  }, [selectedMonth])
+  /** 调整排行榜结束日期时同步修正开始日期，并限制结束日期不能超过今天。 */
+  function handleEndDateChange(value: string) {
+    const safeEnd = clampToToday(value)
+    setEndDate(safeEnd)
+    setStartDate((current) => (compareDate(current, safeEnd) > 0 ? safeEnd : current))
+  }
 
-  /** 调整开始日期时，自动修正结束日期并保持不超过今天。 */
+  /** 调整趋势分析开始日期时，自动校正结束日期。 */
   function handleChartStartDateChange(value: string) {
     const safeStart = clampToToday(value)
     setChartStartDate(safeStart)
@@ -123,7 +75,7 @@ export function AiRatioBoardContent() {
     })
   }
 
-  /** 调整结束日期时，自动修正开始日期并限制结束日期最大为今天。 */
+  /** 调整趋势分析结束日期时，自动校正开始日期。 */
   function handleChartEndDateChange(value: string) {
     const safeEnd = clampToToday(value)
     setChartEndDate(safeEnd)
@@ -131,28 +83,15 @@ export function AiRatioBoardContent() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-visible pb-6 lg:h-full lg:overflow-hidden lg:pb-4">
-      {/* 移动端改为页面级滚动，避免被固定高度和内部滚动容器锁死。 */}
-      <AiRatioBoardHeader
-        totals={
-          totals
-            ? {
-                total_lines: totals.total_lines,
-                ai_lines: totals.ai_lines,
-                ai_ratio: totals.ai_ratio / 100,
-              }
-            : null
-        }
-        selectedMonth={selectedMonth}
-        onMonthChange={setSelectedMonth}
-        loading={totalsLoading}
-      />
-
-      <main className="flex-1 overflow-visible px-4 pb-2 sm:px-6 lg:min-h-0 lg:overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-visible px-4 pb-2 pt-4 sm:px-6 lg:h-full lg:overflow-hidden lg:pb-4">
+      <main className="flex-1 overflow-visible lg:min-h-0 lg:overflow-hidden">
         <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-full lg:grid-cols-[minmax(340px,0.88fr)_minmax(0,1.42fr)]">
           <div className="flex min-h-0 flex-col">
             <LeaderboardPanel
-              selectedMonth={selectedMonth}
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={handleStartDateChange}
+              onEndDateChange={handleEndDateChange}
               onSelectedItemChange={setSelectedLeaderboardItem}
             />
           </div>
@@ -160,16 +99,22 @@ export function AiRatioBoardContent() {
           <Tabs
             value={detailTab}
             onValueChange={(value) => setDetailTab(value as "commits" | "trend")}
-            className="dashboard-panel flex min-h-0 flex-col overflow-visible p-3 lg:h-full lg:overflow-hidden"
+            className="dashboard-panel flex min-h-0 flex-col overflow-visible p-3 lg:h-full lg:min-h-[780px] lg:overflow-hidden"
           >
             <div className="flex flex-col items-start gap-3 px-1 pb-1 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-lg font-semibold text-foreground">详情工作区</div>
               <TabsList className="grid h-auto w-full grid-cols-2 rounded-full bg-secondary/80 p-1 sm:inline-flex sm:h-11 sm:w-auto">
-                <TabsTrigger value="commits" className="rounded-full px-4">
+                <TabsTrigger
+                  value="commits"
+                  className="rounded-full px-4 text-foreground hover:text-foreground data-[state=active]:text-foreground"
+                >
                   <GitCommitHorizontal className="h-4 w-4" />
                   变更明细
                 </TabsTrigger>
-                <TabsTrigger value="trend" className="rounded-full px-4">
+                <TabsTrigger
+                  value="trend"
+                  className="rounded-full px-4 text-foreground hover:text-foreground data-[state=active]:text-foreground"
+                >
                   <LineChart className="h-4 w-4" />
                   趋势分析
                 </TabsTrigger>
@@ -178,17 +123,18 @@ export function AiRatioBoardContent() {
 
             <TabsContent
               value="commits"
-              className="flex flex-1 flex-col overflow-visible lg:min-h-0 lg:overflow-hidden"
+              className="mt-3 flex flex-1 flex-col overflow-visible lg:min-h-0 lg:overflow-hidden"
             >
               <CommitsPanel
                 selectedItem={selectedLeaderboardItem}
-                selectedMonth={selectedMonth}
+                startDate={startDate}
+                endDate={endDate}
               />
             </TabsContent>
 
             <TabsContent
               value="trend"
-              className="flex flex-1 flex-col overflow-visible lg:min-h-0 lg:overflow-hidden"
+              className="mt-3 flex flex-1 flex-col overflow-visible lg:min-h-0 lg:overflow-hidden"
             >
               <TrendChartPanel
                 selectedItem={selectedLeaderboardItem}

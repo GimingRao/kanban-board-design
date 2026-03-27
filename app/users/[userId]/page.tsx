@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 
@@ -20,7 +20,7 @@ const PAGE_SIZE = 10
 
 type DetailTab = "commits" | "ai-records" | "trend"
 
-/** 统一格式化时间，避免列表中的时间展示不一致。 */
+/** 统一格式化时间展示，避免列表中的时间样式不一致。 */
 function formatDateTime(value: string | null) {
   if (!value) return "-"
   const date = new Date(value)
@@ -34,11 +34,25 @@ function formatDateTime(value: string | null) {
   })
 }
 
-/** 将 YYYY-MM 转成中文月份标签。 */
+/** 将后端返回的月份字符串转成人类可读标签。 */
 function monthToLabel(period: string) {
   const [year, month] = period.split("-")
   if (!year || !month) return period
   return `${year}年${Number(month)}月`
+}
+
+/** 统一展示日期区间文案，便于所有页面保持同一口径。 */
+function formatDateRangeLabel(startDate?: string | null, endDate?: string | null) {
+  if (startDate && endDate) return `${startDate} 至 ${endDate}`
+  if (startDate) return `${startDate} 起`
+  if (endDate) return `截止 ${endDate}`
+  return ""
+}
+
+/** 优先使用查询参数中的日期区间，兼容后端仍返回月份 period 的旧结构。 */
+function getPeriodLabel(data: UserProfileDto, startDate?: string | null, endDate?: string | null) {
+  const rangeLabel = formatDateRangeLabel(startDate, endDate)
+  return rangeLabel || monthToLabel(data.period)
 }
 
 /** 直接使用后端返回的提交链接，避免前端重复拼装。 */
@@ -46,7 +60,7 @@ function buildCommitUrl(commit: UserProfileCommitItemDto) {
   return commit.commit_url || null
 }
 
-/** 统一提交入口文案，不直接暴露原始提交标识。 */
+/** 统一提交入口文案。 */
 function getCommitLabel(commit: UserProfileCommitItemDto) {
   return commit.commit_url ? "查看提交" : "-"
 }
@@ -59,32 +73,31 @@ function aiStatusLabel(status: UserProfileAIRecordItemDto["status"]) {
   return status || "-"
 }
 
-/** 统一展示 AI 工具名称。 */
+/** 统一显示 AI 工具名称。 */
 function formatAiTool(tool: string) {
   return tool || "-"
 }
 
-/** 为截断的 diff 追加提示，避免误解为完整内容。 */
+/** 为截断 diff 追加提示，避免误解为完整内容。 */
 function truncatePreviewSuffix(truncated: boolean) {
   return truncated ? "\n...（已截断）" : ""
 }
 
-/** 兼容后端不同账号字段的展示逻辑。 */
+/** 兼容不同账号字段的展示逻辑。 */
 function getUserAccountLabel(data: UserProfileDto) {
   return data.user.git_name || data.user.username || "-"
 }
 
-/** 提交分页摘要单独封装，避免模板重复。 */
+/** 生成提交分页摘要。 */
 function getCommitPaginationSummary(data: UserProfileDto) {
   return `第 ${data.pagination.page} / ${Math.max(data.pagination.total_pages, 1)} 页（共 ${data.pagination.total} 条）`
 }
 
-/** AI 记录分页摘要单独封装，避免模板重复。 */
+/** 生成 AI 记录分页摘要。 */
 function getAiPaginationSummary(data: UserProfileDto) {
   return `第 ${data.ai_records_pagination.page} / ${Math.max(data.ai_records_pagination.total_pages, 1)} 页（共 ${data.ai_records_pagination.total} 条）`
 }
 
-/** 将月份字符串向前偏移，用于默认展示近三个月趋势。 */
 /** 获取今天日期，限制趋势分析的结束日期不能超过当前自然日。 */
 function getTodayString(): string {
   const today = new Date()
@@ -99,12 +112,12 @@ function shiftDate(value: string, deltaDays: number): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 }
 
-/** 比较两个日期字符串，确保趋势区间的起止关系始终正确。 */
+/** 比较两个日期字符串，确保趋势区间关系始终正确。 */
 function compareDate(left: string, right: string) {
   return left.localeCompare(right)
 }
 
-/** 将日期裁剪到今天之前，避免趋势分析误选未来日期。 */
+/** 将日期裁剪到今天之前，避免误选未来日期。 */
 function clampToToday(value: string) {
   const today = getTodayString()
   return compareDate(value, today) > 0 ? today : value
@@ -116,15 +129,8 @@ export default function UserProfilePage() {
 
   const userId = Number(params.userId)
   const repoId = Number(searchParams.get("repoId") ?? "-1")
-  const yearParam = searchParams.get("year")
-  const monthParam = searchParams.get("month")
-
-  const initialYear = yearParam ? Number(yearParam) : undefined
-  const initialMonth = monthParam ? Number(monthParam) : undefined
-  const periodMonth =
-    initialYear && initialMonth
-      ? `${initialYear}-${String(initialMonth).padStart(2, "0")}`
-      : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
+  const startDate = searchParams.get("start_date")
+  const endDate = searchParams.get("end_date")
 
   const [activeTab, setActiveTab] = useState<DetailTab>("commits")
   const [commitPage, setCommitPage] = useState(1)
@@ -135,15 +141,20 @@ export default function UserProfilePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const periodLabel = useMemo(
+    () => (data ? getPeriodLabel(data, startDate, endDate) : formatDateRangeLabel(startDate, endDate)),
+    [data, endDate, startDate],
+  )
+
   useEffect(() => {
     setCommitPage(1)
     setAiPage(1)
     const today = getTodayString()
     setTrendEndDate(today)
     setTrendStartDate(shiftDate(today, -29))
-  }, [repoId, userId, periodMonth])
+  }, [repoId, userId, startDate, endDate])
 
-  /** 用户详情页同样保持趋势日期区间合法，避免出现倒置和未来日期。 */
+  /** 用户详情页同样保证趋势日期区间合法，避免出现倒置和未来日期。 */
   function handleTrendStartDateChange(value: string) {
     const safeStart = clampToToday(value)
     setTrendStartDate(safeStart)
@@ -180,8 +191,8 @@ export default function UserProfilePage() {
       repoId,
       userId,
       {
-        year: initialYear,
-        month: initialMonth,
+        start_date: startDate ?? undefined,
+        end_date: endDate ?? undefined,
         commitPage,
         commitPageSize: PAGE_SIZE,
         aiPage,
@@ -206,7 +217,7 @@ export default function UserProfilePage() {
     return () => {
       abortController.abort()
     }
-  }, [repoId, userId, initialYear, initialMonth, commitPage, aiPage])
+  }, [repoId, userId, startDate, endDate, commitPage, aiPage])
 
   const canPrevCommit = (data?.pagination.page ?? 1) > 1
   const canNextCommit = (data?.pagination.total_pages ?? 0) > (data?.pagination.page ?? 1)
@@ -261,8 +272,8 @@ export default function UserProfilePage() {
                   <div className="text-sm font-medium">{data.user.department.name}</div>
                 </div>
                 <div className="rounded-md border p-3">
-                  <div className="text-xs text-muted-foreground">统计月份</div>
-                  <div className="text-sm font-medium">{monthToLabel(data.period)}</div>
+                  <div className="text-xs text-muted-foreground">统计区间</div>
+                  <div className="text-sm font-medium">{periodLabel || "-"}</div>
                 </div>
                 <div className="rounded-md border p-3">
                   <div className="text-xs text-muted-foreground">提交数</div>

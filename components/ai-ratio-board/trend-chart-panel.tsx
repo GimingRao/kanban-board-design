@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts"
 
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   fetchDepartmentTrend,
@@ -65,12 +66,23 @@ function formatRangeDate(value: string) {
   })
 }
 
-/** 统一获取今天日期，用于限制结束日期上限。 */
+/** 获取今天日期，用于生成快捷区间。 */
 function getTodayString() {
   const today = new Date()
   const year = today.getFullYear()
   const month = String(today.getMonth() + 1).padStart(2, "0")
   const day = String(today.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+/** 按天偏移日期，用于生成近一周和近一个月。 */
+function shiftDate(value: string, deltaDays: number): string {
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return value
+  date.setDate(date.getDate() + deltaDays)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
   return `${year}-${month}-${day}`
 }
 
@@ -160,22 +172,84 @@ export function TrendChartPanel({
     return totalLines > 0 ? (aiLines / totalLines) * 100 : 0
   }, [dataPoints])
 
+  /** 趋势分析支持与左侧榜单一致的快捷区间切换。 */
+  const applyPresetRange = (mode: "week" | "month") => {
+    const end = today
+    const start = mode === "week" ? shiftDate(end, -6) : shiftDate(end, -29)
+    onStartDateChange(start)
+    onEndDateChange(end)
+  }
+
   const trendTitle = selectedItem ? `${selectedItem.name} 的日度趋势` : "当前展示全局日度趋势"
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-      <div className="rounded-[1.35rem] border border-border/70 bg-card/90 p-4">
+    <section className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="rounded-[1.2rem] border border-border/70 bg-secondary/20 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-foreground">统计区间</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => applyPresetRange("week")}
+              className="h-8 rounded-full bg-card/90 px-3 hover:bg-card"
+            >
+              近一周
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => applyPresetRange("month")}
+              className="h-8 rounded-full bg-card/90 px-3 hover:bg-card"
+            >
+              近一个月
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <Input
+              type="date"
+              value={startDate}
+              max={endDate > today ? today : endDate}
+              onChange={(event) => onStartDateChange(event.target.value)}
+              className="h-9 w-[148px] rounded-xl border-border/70 bg-card/90 px-3 shadow-none"
+            />
+            <span>至</span>
+            <Input
+              type="date"
+              value={endDate}
+              min={startDate}
+              max={today}
+              onChange={(event) => onEndDateChange(event.target.value)}
+              className="h-9 w-[148px] rounded-xl border-border/70 bg-card/90 px-3 shadow-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[1.35rem] border border-border/70 bg-card/90 p-4 lg:flex-1">
         <div className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h3 className="text-lg font-semibold text-card-foreground">AI 占比趋势</h3>
             <p className="mt-1 text-sm text-muted-foreground">{trendTitle}</p>
           </div>
-          <div className="rounded-2xl border border-border/70 bg-secondary/35 px-3 py-2 text-sm text-muted-foreground">
-            统计区间：{formatRangeDate(startDate)} 至 {formatRangeDate(endDate)}
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl border border-border/70 bg-secondary/35 px-3 py-2 text-sm text-muted-foreground">
+              统计区间：{formatRangeDate(startDate)} 至 {formatRangeDate(endDate)}
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-accent/5 px-4 py-2">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                区间平均 AI 占比
+              </div>
+              <div className="mt-1 text-2xl font-semibold tracking-tight text-accent">
+                {avgRatio.toFixed(1)}%
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 h-[260px]">
+        <div className="mt-4 h-[340px] lg:h-[420px]">
           {loading ? (
             <div className="flex h-full w-full items-center justify-center rounded-2xl bg-secondary/20 text-sm text-muted-foreground">
               正在加载趋势...
@@ -241,47 +315,6 @@ export function TrendChartPanel({
           )}
         </div>
       </div>
-
-      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-        <div className="glass-panel rounded-[1.35rem] p-4">
-          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            开始日期
-          </div>
-          <Input
-            type="date"
-            value={startDate}
-            max={endDate > today ? today : endDate}
-            onChange={(event) => onStartDateChange(event.target.value)}
-            className="mt-3 h-11 rounded-2xl border-border/70 bg-card/90 shadow-none"
-          />
-        </div>
-
-        <div className="glass-panel rounded-[1.35rem] p-4">
-          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            结束日期
-          </div>
-          <Input
-            type="date"
-            value={endDate}
-            min={startDate}
-            max={today}
-            onChange={(event) => onEndDateChange(event.target.value)}
-            className="mt-3 h-11 rounded-2xl border-border/70 bg-card/90 shadow-none"
-          />
-        </div>
-
-        <div className="rounded-[1.35rem] border border-border/70 bg-secondary/35 p-5">
-          <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            区间平均 AI 占比
-          </div>
-          <div className="mt-3 text-4xl font-semibold tracking-tight text-accent">
-            {avgRatio.toFixed(1)}%
-          </div>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            趋势图现在按天展示，默认聚焦最近一个月，更适合观察短期波动和异常峰值。
-          </p>
-        </div>
-      </div>
-    </div>
+    </section>
   )
 }

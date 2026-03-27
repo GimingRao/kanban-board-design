@@ -24,18 +24,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
 }
 
-// 解析年月筛选值，供提交明细接口复用。
-function parseMonth(value: string): { year: number; month: number } | null {
-  const [yearText, monthText] = value.split("-")
-  const year = Number(yearText)
-  const month = Number(monthText)
-
-  if (!Number.isFinite(year) || !Number.isFinite(month)) return null
-  if (month < 1 || month > 12) return null
-
-  return { year, month }
-}
-
 // 统一格式化提交时间，保证列表展示稳定。
 function formatDateTime(value: string | null) {
   if (!value) return "-"
@@ -59,10 +47,11 @@ function getCommitUrl(item: AICommitsDto["items"][number]) {
 
 export interface CommitsPanelProps {
   selectedItem: SelectedItem | null
-  selectedMonth: string
+  startDate: string
+  endDate: string
 }
 
-export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps) {
+export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelProps) {
   const router = useRouter()
   const [data, setData] = useState<AICommitsDto | null>(null)
   const [loading, setLoading] = useState(false)
@@ -107,13 +96,13 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
       }
       window.removeEventListener("resize", onResize)
     }
-  }, [selectedItem, selectedMonth, data])
+  }, [selectedItem, startDate, endDate, data])
 
   useEffect(() => {
     setPage(1)
   }, [visibleRows])
 
-  // 切换对象或月份时先回到第 1 页，避免沿用旧分页状态。
+  // 切换对象或时间范围时回到第一页，避免沿用旧分页状态。
   useEffect(() => {
     if (!selectedItem) {
       setData(null)
@@ -123,14 +112,11 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
     }
 
     setPage(1)
-  }, [selectedItem, selectedMonth, visibleRows])
+  }, [selectedItem, startDate, endDate, visibleRows])
 
-  // 按当前页统一请求数据，确保从第 2 页返回第 1 页时也会刷新列表。
+  // 按当前分页和区间统一请求明细数据。
   useEffect(() => {
     if (!selectedItem) return
-
-    const parsed = parseMonth(selectedMonth)
-    if (!parsed) return
 
     let cancelled = false
     setLoading(true)
@@ -141,16 +127,16 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
         ? () =>
             fetchAICommitsByDepartment({
               department_id: selectedItem.id,
-              year: parsed.year,
-              month: parsed.month,
+              start_date: startDate,
+              end_date: endDate,
               page,
               page_size: visibleRows,
             })
         : () =>
             fetchAICommitsByUser({
               user_id: selectedItem.id,
-              year: parsed.year,
-              month: parsed.month,
+              start_date: startDate,
+              end_date: endDate,
               page,
               page_size: visibleRows,
             })
@@ -173,7 +159,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
     return () => {
       cancelled = true
     }
-  }, [page, selectedItem, selectedMonth, visibleRows])
+  }, [page, selectedItem, startDate, endDate, visibleRows])
 
   const totalPages = data?.pagination.total_pages ?? 0
   const canPrev = page > 1
@@ -185,6 +171,16 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
         ? `用户：${selectedItem.name}`
         : null
 
+  // 跳转个人详情时保留当前时间范围，避免上下文丢失。
+  function openUserProfile(userId: number) {
+    const params = new URLSearchParams({
+      repoId: "-1",
+      start_date: startDate,
+      end_date: endDate,
+    })
+    router.push(`/users/${userId}?${params.toString()}`)
+  }
+
   return (
     <section ref={panelRef} className="dashboard-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {/* 移动端取消内部主滚动区，避免与页面滚动冲突导致内容看不全。 */}
@@ -195,7 +191,9 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
               <GitCommitHorizontal className="h-4 w-4 text-accent" />
               {selectionSummary}
             </div>
-            <div className="text-sm text-muted-foreground">已按月份筛选当前提交记录</div>
+            <div className="text-sm text-muted-foreground">
+              当前按所选日期区间筛选提交记录
+            </div>
           </div>
         </div>
       )}
@@ -208,7 +206,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
             </div>
             <div className="mt-4 text-lg font-semibold text-foreground">等待选择查看对象</div>
             <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              点击左侧部门或个人卡片后，这里会展示对应月份内的提交记录、AI 占比与代码增量。
+              点击左侧部门或个人卡片后，这里会展示对应日期区间内的提交记录、AI 占比与代码增量。
             </p>
           </div>
         ) : loading ? (
@@ -221,7 +219,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
           </div>
         ) : !data || data.items.length === 0 ? (
           <div className="flex h-full min-h-[260px] items-center justify-center rounded-[1.5rem] border border-dashed border-border bg-secondary/20 text-sm text-muted-foreground">
-            当前月份暂无提交记录
+            当前时间范围暂无提交记录
           </div>
         ) : (
           <div>
@@ -267,7 +265,7 @@ export function CommitsPanel({ selectedItem, selectedMonth }: CommitsPanelProps)
                         <td className="whitespace-nowrap px-4 py-4 text-card-foreground">
                           <button
                             type="button"
-                            onClick={() => router.push(`/users/${item.user.id}?repoId=-1`)}
+                            onClick={() => openUserProfile(item.user.id)}
                             className="rounded-full px-3 py-1 text-left transition-colors hover:bg-secondary/70 hover:text-primary"
                           >
                             {item.user.name}

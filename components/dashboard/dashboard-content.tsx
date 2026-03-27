@@ -21,66 +21,82 @@ export interface DashboardContentProps {
   onViewTypeChange?: (viewType: string) => void
 }
 
-// 获取当前月份，作为筛选器默认值。
+/** 获取当前月份，作为趋势图默认的月度区间。 */
 function getCurrentMonth(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  return `${y}-${m}`
+  const date = new Date()
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 }
 
-// 解析 YYYY-MM 字符串，供接口参数和区间计算复用。
+/** 解析 YYYY-MM 字符串，供趋势图月份范围计算复用。 */
 function parseMonth(value: string): { year: number; month: number } | null {
-  const [y, m] = value.split("-")
-  const year = Number(y)
-  const month = Number(m)
+  const [yearText, monthText] = value.split("-")
+  const year = Number(yearText)
+  const month = Number(monthText)
   if (!Number.isFinite(year) || !Number.isFinite(month)) return null
   if (month < 1 || month > 12) return null
   return { year, month }
 }
 
-// 把年月映射成线性索引，便于比较区间先后。
-function monthIndex({ year, month }: { year: number; month: number }): number {
+/** 将年月映射成线性索引，便于比较月份先后。 */
+function monthIndex({ year, month }: { year: number; month: number }) {
   return year * 12 + (month - 1)
 }
 
-// 基于指定月份做月级偏移。
+/** 基于指定月份做月级偏移。 */
 function shiftMonth(value: string, delta: number): string {
   const parsed = parseMonth(value)
   if (!parsed) return value
-  const d = new Date(parsed.year, parsed.month - 1 + delta, 1)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  return `${y}-${m}`
+  const date = new Date(parsed.year, parsed.month - 1 + delta, 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 }
 
-/** 将月份字符串转换为自然月日期范围，供趋势接口复用。 */
-/** 获取今天日期，用于限制当前月汇总查询不要落到未来日期。*/
+/** 获取今天日期，限制查询区间不要落到未来。 */
 function getTodayString(): string {
   const today = new Date()
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
 }
 
-/** 比较两个日期字符串，便于将自然月结束日裁剪到今天。*/
+/** 将日期偏移指定天数，用于默认展示最近一个月排行。 */
+function shiftDate(value: string, deltaDays: number): string {
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return value
+  date.setDate(date.getDate() + deltaDays)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
+/** 比较日期字符串，确保开始结束区间关系合法。 */
 function compareDate(left: string, right: string) {
   return left.localeCompare(right)
 }
 
+/** 将月字符串转换为自然月日期范围。 */
 function getMonthDateRange(value: string) {
   const parsed = parseMonth(value)
   if (!parsed) return null
   const start = `${parsed.year}-${String(parsed.month).padStart(2, "0")}-01`
   const end = new Date(parsed.year, parsed.month, 0)
   const naturalEnd = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`
-  const endDate = compareDate(naturalEnd, getTodayString()) > 0 ? getTodayString() : naturalEnd
-  return { start, end: endDate }
+  const today = getTodayString()
+  return {
+    start,
+    end: compareDate(naturalEnd, today) > 0 ? today : naturalEnd,
+  }
 }
 
-// 仪表盘主页，适配后端最新的趋势接口与 AI 排行榜接口。
+/** 统一裁剪到今天，避免日期输入超出后端允许范围。 */
+function clampToToday(value: string) {
+  const today = getTodayString()
+  return compareDate(value, today) > 0 ? today : value
+}
+
+/** 仪表盘首页同时支持趋势按月、排行按日期区间。 */
 export function DashboardContent({}: DashboardContentProps = {}) {
+  const today = getTodayString()
+
   const [repos, setRepos] = useState<RepoDto[]>([])
   const [selectedRepo, setSelectedRepo] = useState("")
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
+  const [selectedStartDate, setSelectedStartDate] = useState(shiftDate(today, -29))
+  const [selectedEndDate, setSelectedEndDate] = useState(today)
   const [chartEndMonth, setChartEndMonth] = useState(getCurrentMonth())
   const [chartStartMonth, setChartStartMonth] = useState(shiftMonth(getCurrentMonth(), -11))
 
@@ -127,12 +143,10 @@ export function DashboardContent({}: DashboardContentProps = {}) {
     const endParsed = parseMonth(chartEndMonth)
     if (!startParsed || !endParsed) return
 
-    const startIdx = monthIndex(startParsed)
-    const endIdx = monthIndex(endParsed)
-    const safeStartIdx = Math.min(startIdx, endIdx)
-    const safeEndIdx = Math.max(startIdx, endIdx)
-    const safeStartMonth = `${Math.floor(safeStartIdx / 12)}-${String((safeStartIdx % 12) + 1).padStart(2, "0")}`
-    const safeEndMonth = `${Math.floor(safeEndIdx / 12)}-${String((safeEndIdx % 12) + 1).padStart(2, "0")}`
+    const safeStartIndex = Math.min(monthIndex(startParsed), monthIndex(endParsed))
+    const safeEndIndex = Math.max(monthIndex(startParsed), monthIndex(endParsed))
+    const safeStartMonth = `${Math.floor(safeStartIndex / 12)}-${String((safeStartIndex % 12) + 1).padStart(2, "0")}`
+    const safeEndMonth = `${Math.floor(safeEndIndex / 12)}-${String((safeEndIndex % 12) + 1).padStart(2, "0")}`
     const startRange = getMonthDateRange(safeStartMonth)
     const endRange = getMonthDateRange(safeEndMonth)
     if (!startRange || !endRange) return
@@ -165,35 +179,45 @@ export function DashboardContent({}: DashboardContentProps = {}) {
     }
   }, [selectedRepo, chartStartMonth, chartEndMonth])
 
-  // 起始月份不能晚于结束月份。
+  /** 起始月份不能晚于结束月份。 */
   const handleChartStartChange = (value: string) => {
     setChartStartMonth(value)
     const startParsed = parseMonth(value)
     const endParsed = parseMonth(chartEndMonth)
     if (!startParsed || !endParsed) return
-    if (monthIndex(startParsed) > monthIndex(endParsed)) {
-      setChartEndMonth(value)
-    }
+    if (monthIndex(startParsed) > monthIndex(endParsed)) setChartEndMonth(value)
   }
 
-  // 结束月份不能早于起始月份。
+  /** 结束月份不能早于起始月份。 */
   const handleChartEndChange = (value: string) => {
     setChartEndMonth(value)
     const startParsed = parseMonth(chartStartMonth)
     const endParsed = parseMonth(value)
     if (!startParsed || !endParsed) return
-    if (monthIndex(endParsed) < monthIndex(startParsed)) {
-      setChartStartMonth(value)
-    }
+    if (monthIndex(endParsed) < monthIndex(startParsed)) setChartStartMonth(value)
+  }
+
+  /** 调整排行开始日期时同步修正结束日期。 */
+  const handleStartDateChange = (value: string) => {
+    const safeStart = clampToToday(value)
+    setSelectedStartDate(safeStart)
+    setSelectedEndDate((current) => {
+      const safeCurrent = clampToToday(current)
+      return compareDate(safeCurrent, safeStart) < 0 ? safeStart : safeCurrent
+    })
+  }
+
+  /** 调整排行结束日期时同步修正开始日期。 */
+  const handleEndDateChange = (value: string) => {
+    const safeEnd = clampToToday(value)
+    setSelectedEndDate(safeEnd)
+    setSelectedStartDate((current) => (compareDate(current, safeEnd) > 0 ? safeEnd : current))
   }
 
   useEffect(() => {
     if (!selectedRepo) return
     const repoId = Number(selectedRepo)
     if (!Number.isFinite(repoId) || repoId === 0) return
-
-    const monthRange = getMonthDateRange(selectedMonth)
-    if (!monthRange) return
 
     let cancelled = false
     setLoadingLeaderboard(true)
@@ -203,15 +227,15 @@ export function DashboardContent({}: DashboardContentProps = {}) {
       fetchAIRatioUserLeaderboard({
         repo_id: repoId,
         sort: "ai_ratio",
-        year: Number(selectedMonth.split("-")[0]),
-        month: Number(selectedMonth.split("-")[1]),
+        start_date: selectedStartDate,
+        end_date: selectedEndDate,
         page: 1,
         page_size: 20,
       }),
       fetchRepoTrend({
         repo_id: repoId,
-        start_date: monthRange.start,
-        end_date: monthRange.end,
+        start_date: selectedStartDate,
+        end_date: selectedEndDate,
       }),
     ])
       .then(([leaderboardData, totalsData]) => {
@@ -221,7 +245,7 @@ export function DashboardContent({}: DashboardContentProps = {}) {
       })
       .catch((err: unknown) => {
         if (cancelled) return
-        const message = err instanceof Error ? err.message : "加载排行榜失败"
+        const message = err instanceof Error ? err.message : "加载排行失败"
         setError(message)
         setLeaderboard(null)
         setTotals(null)
@@ -233,7 +257,7 @@ export function DashboardContent({}: DashboardContentProps = {}) {
     return () => {
       cancelled = true
     }
-  }, [selectedRepo, selectedMonth])
+  }, [selectedRepo, selectedStartDate, selectedEndDate])
 
   const repoOptions: RepoOption[] = useMemo(
     () => [
@@ -247,7 +271,7 @@ export function DashboardContent({}: DashboardContentProps = {}) {
   )
 
   const selectedRepoLabel = useMemo(
-    () => repoOptions.find((r) => r.id === selectedRepo)?.label ?? "未选择仓库",
+    () => repoOptions.find((item) => item.id === selectedRepo)?.label ?? "未选择仓库",
     [repoOptions, selectedRepo],
   )
 
@@ -305,14 +329,15 @@ export function DashboardContent({}: DashboardContentProps = {}) {
             endMonth={chartEndMonth}
             onStartMonthChange={handleChartStartChange}
             onEndMonthChange={handleChartEndChange}
-            onMonthSelect={setSelectedMonth}
           />
           <Leaderboard
             repoId={Number(selectedRepo)}
             data={leaderboard}
             loading={loadingLeaderboard}
-            selectedMonth={selectedMonth}
-            onMonthChange={setSelectedMonth}
+            startDate={selectedStartDate}
+            endDate={selectedEndDate}
+            onStartDateChange={handleStartDateChange}
+            onEndDateChange={handleEndDateChange}
           />
         </div>
       </div>

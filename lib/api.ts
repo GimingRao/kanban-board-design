@@ -170,6 +170,15 @@ function monthAnchorQuery(anchor?: { year?: number; month?: number }): string {
   return `&year=${anchor.year}&month=${anchor.month}`
 }
 
+// 统一拼接开始/结束日期查询参数，供支持特定时间范围的接口复用。
+function dateRangeQuery(range?: { start_date?: string; end_date?: string }): string {
+  const params = new URLSearchParams()
+  if (range?.start_date) params.set("start_date", range.start_date)
+  if (range?.end_date) params.set("end_date", range.end_date)
+  const query = params.toString()
+  return query ? `&${query}` : ""
+}
+
 export interface RepoDto {
   id: number
   name: string
@@ -392,6 +401,8 @@ export function fetchUserProfile(
   options?: {
     year?: number
     month?: number
+    start_date?: string
+    end_date?: string
     page?: number
     pageSize?: number
     commitPage?: number
@@ -404,6 +415,8 @@ export function fetchUserProfile(
   const params = new URLSearchParams()
   if (options?.year) params.set("year", String(options.year))
   if (options?.month) params.set("month", String(options.month))
+  if (options?.start_date) params.set("start_date", options.start_date)
+  if (options?.end_date) params.set("end_date", options.end_date)
   if (options?.page) params.set("page", String(options.page))
   if (options?.pageSize) params.set("page_size", String(options.pageSize))
   if (options?.commitPage) params.set("commit_page", String(options.commitPage))
@@ -627,12 +640,21 @@ export function changeCurrentUserPassword(
 }
 
 export function fetchMyProfile(
-  options?: { year?: number; month?: number; page?: number; pageSize?: number },
+  options?: {
+    year?: number
+    month?: number
+    start_date?: string
+    end_date?: string
+    page?: number
+    pageSize?: number
+  },
   signal?: AbortSignal,
 ): Promise<UserProfileDto> {
   const params = new URLSearchParams()
   if (options?.year) params.set("year", String(options.year))
   if (options?.month) params.set("month", String(options.month))
+  if (options?.start_date) params.set("start_date", options.start_date)
+  if (options?.end_date) params.set("end_date", options.end_date)
   if (options?.page) params.set("page", String(options.page))
   if (options?.pageSize) params.set("page_size", String(options.pageSize))
   const query = params.toString()
@@ -720,8 +742,10 @@ export function fetchAIRatioDepartmentLeaderboard(
     parent_id?: number
     level?: number
     sort?: "ai_ratio" | "ai_lines" | "total_lines"
-    year: number
-    month: number
+    year?: number
+    month?: number
+    start_date?: string
+    end_date?: string
     page?: number
     page_size?: number
   },
@@ -734,7 +758,9 @@ export function fetchAIRatioDepartmentLeaderboard(
   const parentQuery = options.parent_id !== undefined ? `&parent_id=${options.parent_id}` : ""
 
   return getJson<AIRatioLeaderboardDto>(
-    `/leaderboards/departments?repo_id=${repoId}&sort=${sort}&year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}${levelQuery}${parentQuery}`,
+    `/leaderboards/departments?repo_id=${repoId}&sort=${sort}&page=${page}&page_size=${pageSize}${dateRangeQuery(
+      options,
+    )}${monthAnchorQuery(options)}${levelQuery}${parentQuery}`,
   )
 }
 
@@ -743,8 +769,10 @@ export function fetchAIRatioUserLeaderboard(
     repo_id?: number
     department_id?: number
     sort?: "ai_ratio" | "ai_lines" | "total_lines"
-    year: number
-    month: number
+    year?: number
+    month?: number
+    start_date?: string
+    end_date?: string
     search?: string
     page?: number
     page_size?: number
@@ -758,7 +786,9 @@ export function fetchAIRatioUserLeaderboard(
   const searchQuery = options.search !== undefined ? `&search=${encodeURIComponent(options.search)}` : ""
 
   return getJson<AIRatioLeaderboardDto>(
-    `/leaderboards/users?repo_id=${repoId}&sort=${sort}&year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}${deptQuery}${searchQuery}`,
+    `/leaderboards/users?repo_id=${repoId}&sort=${sort}&page=${page}&page_size=${pageSize}${dateRangeQuery(
+      options,
+    )}${monthAnchorQuery(options)}${deptQuery}${searchQuery}`,
   )
 }
 
@@ -766,8 +796,10 @@ export function fetchAICommitsByDepartment(
   options: {
     repo_id?: number
     department_id: number
-    year: number
-    month: number
+    year?: number
+    month?: number
+    start_date?: string
+    end_date?: string
     page?: number
     page_size?: number
   },
@@ -777,7 +809,9 @@ export function fetchAICommitsByDepartment(
   const pageSize = options.page_size ?? 20
 
   return getJson<AICommitsDto>(
-    `/commits/by-department?repo_id=${repoId}&department_id=${options.department_id}&year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}`,
+    `/commits/by-department?repo_id=${repoId}&department_id=${options.department_id}&page=${page}&page_size=${pageSize}${dateRangeQuery(
+      options,
+    )}${monthAnchorQuery(options)}`,
   )
 }
 
@@ -785,8 +819,10 @@ export function fetchAICommitsByRepo(
   options: {
     repo_id: number
     department_id?: number
-    year: number
-    month: number
+    year?: number
+    month?: number
+    start_date?: string
+    end_date?: string
     page?: number
     page_size?: number
   },
@@ -796,7 +832,9 @@ export function fetchAICommitsByRepo(
   const deptQuery = options.department_id !== undefined ? `&department_id=${options.department_id}` : ""
 
   return getJson<AICommitsDto>(
-    `/commits/by-repo?repo_id=${options.repo_id}&year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}${deptQuery}`,
+    `/commits/by-repo?repo_id=${options.repo_id}&page=${page}&page_size=${pageSize}${dateRangeQuery(
+      options,
+    )}${monthAnchorQuery(options)}${deptQuery}`,
   )
 }
 
@@ -804,8 +842,10 @@ export function fetchAICommitsByUser(
   options: {
     repo_id?: number
     user_id: number
-    year: number
-    month: number
+    year?: number
+    month?: number
+    start_date?: string
+    end_date?: string
     page?: number
     page_size?: number
   },
@@ -815,7 +855,9 @@ export function fetchAICommitsByUser(
   const pageSize = options.page_size ?? 20
 
   return getJson<AICommitsDto>(
-    `/commits/by-user?repo_id=${repoId}&user_id=${options.user_id}&year=${options.year}&month=${options.month}&page=${page}&page_size=${pageSize}`,
+    `/commits/by-user?repo_id=${repoId}&user_id=${options.user_id}&page=${page}&page_size=${pageSize}${dateRangeQuery(
+      options,
+    )}${monthAnchorQuery(options)}`,
   )
 }
 

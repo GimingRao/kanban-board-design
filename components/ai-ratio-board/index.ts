@@ -1,4 +1,3 @@
-export { AiRatioBoardHeader } from "./header"
 export { LeaderboardPanel } from "./leaderboard-panel"
 export type { SelectedItem } from "./leaderboard-panel"
 export { TrendChartPanel } from "./trend-chart-panel"
