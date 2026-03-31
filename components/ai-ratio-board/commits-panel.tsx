@@ -98,9 +98,6 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
     }
   }, [selectedItem, startDate, endDate, data])
 
-  useEffect(() => {
-    setPage(1)
-  }, [visibleRows])
 
   // 切换对象或时间范围时回到第一页，避免沿用旧分页状态。
   useEffect(() => {
@@ -112,7 +109,7 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
     }
 
     setPage(1)
-  }, [selectedItem, startDate, endDate, visibleRows])
+  }, [selectedItem, startDate, endDate])
 
   // 按当前分页和区间统一请求明细数据。
   useEffect(() => {
@@ -162,6 +159,15 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
   }, [page, selectedItem, startDate, endDate, visibleRows])
 
   const totalPages = data?.pagination.total_pages ?? 0
+
+  /** 当分页总数收缩时，将当前页限制在有效范围内。 */
+  useEffect(() => {
+    if (totalPages <= 0) return
+    if (page <= totalPages) return
+
+    setPage(totalPages)
+  }, [page, totalPages])
+
   const canPrev = page > 1
   const canNext = totalPages > 0 && page < totalPages
   const selectionSummary =
