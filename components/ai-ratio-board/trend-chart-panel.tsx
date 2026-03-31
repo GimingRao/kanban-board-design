@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   fetchDepartmentTrend,
+  fetchProjectTrend,
   fetchRepoTrend,
   fetchUserTrend,
   type DataPointMetric,
@@ -117,6 +118,16 @@ export function TrendChartPanel({
           start_date: startDate,
           end_date: endDate,
         })
+    } else if (selectedItem?.type === "project") {
+      fetchTrend = () =>
+        fetchProjectTrend(
+          {
+            project_id: selectedItem.id,
+            start_date: startDate,
+            end_date: endDate,
+          },
+          undefined,
+        )
     } else if (selectedItem?.type === "user") {
       fetchTrend = () =>
         fetchUserTrend({

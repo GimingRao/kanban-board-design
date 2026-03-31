@@ -123,6 +123,13 @@ function clampToToday(value: string) {
   return compareDate(value, today) > 0 ? today : value
 }
 
+/** 根据来源页签生成返回看板链接，避免用户详情返回后丢失原始模块上下文。 */
+function buildDashboardHref(sourceTab: string | null) {
+  const params = new URLSearchParams()
+  params.set("tab", sourceTab || "ai-ratio")
+  return `/?${params.toString()}`
+}
+
 export default function UserProfilePage() {
   const params = useParams<{ userId: string }>()
   const searchParams = useSearchParams()
@@ -131,6 +138,7 @@ export default function UserProfilePage() {
   const repoId = Number(searchParams.get("repoId") ?? "-1")
   const startDate = searchParams.get("start_date")
   const endDate = searchParams.get("end_date")
+  const sourceTab = searchParams.get("sourceTab")
 
   const [activeTab, setActiveTab] = useState<DetailTab>("commits")
   const [commitPage, setCommitPage] = useState(1)
@@ -145,6 +153,7 @@ export default function UserProfilePage() {
     () => (data ? getPeriodLabel(data, startDate, endDate) : formatDateRangeLabel(startDate, endDate)),
     [data, endDate, startDate],
   )
+  const dashboardHref = useMemo(() => buildDashboardHref(sourceTab), [sourceTab])
 
   useEffect(() => {
     setCommitPage(1)
@@ -230,7 +239,7 @@ export default function UserProfilePage() {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
         <div className="flex items-center justify-between">
           <Button asChild variant="outline" size="sm">
-            <Link href="/">
+            <Link href={dashboardHref}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               返回看板
             </Link>
@@ -304,7 +313,7 @@ export default function UserProfilePage() {
                   <CardTitle className="text-base">AI 占比</CardTitle>
                 </CardHeader>
                 <CardContent className="text-2xl font-semibold">
-                  {data.summary.ai_ratio.toFixed(2)}%
+                  {(data.summary.ai_ratio * 100).toFixed(2)}%
                 </CardContent>
               </Card>
             </div>
@@ -375,7 +384,7 @@ export default function UserProfilePage() {
                                     {commit.ai_lines.toLocaleString()}
                                   </td>
                                   <td className="py-2 pr-4 text-right font-mono">
-                                    {commit.ai_ratio.toFixed(2)}%
+                                    {(commit.ai_ratio * 100).toFixed(2)}%
                                   </td>
                                 </tr>
                               )

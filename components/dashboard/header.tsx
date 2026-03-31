@@ -29,6 +29,7 @@ interface Tab {
 const tabs: Tab[] = [
   { id: "ai-ratio", label: "AI 代码占比" },
   { id: "dept-users", label: "用户与部门管理" },
+  { id: "repo-management", label: "仓库管理" },
 ]
 
 interface HeaderProps {

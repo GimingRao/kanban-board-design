@@ -183,7 +183,14 @@ export interface RepoDto {
   id: number
   name: string
   repo_key: string
+  project_name?: string | null
   web_url?: string | null
+}
+
+export interface ProjectListItemDto {
+  id: number
+  name: string
+  repo_count: number
 }
 
 export interface MonthlySeriesItemDto {
@@ -334,8 +341,98 @@ export interface UserProfileDto {
   recent_ai_records: UserProfileAIRecordItemDto[]
 }
 
+export interface ProjectProfileCommitItemDto {
+  id: number
+  commit_sha?: string | null
+  commit_url?: string | null
+  committed_at: string | null
+  additions: number
+  deletions: number
+  files_changed: number
+  message: string
+  ai_lines: number
+  human_lines: number
+  ai_ratio: number
+  repo_id: number
+  repo_name: string
+  repo_web_url?: string | null
+  author?: {
+    id: number
+    name: string
+  }
+}
+
+export interface ProjectProfileAIRecordItemDto {
+  id: number
+  event_id: string
+  ai_tool: string
+  timestamp: string | null
+  file_path: string
+  status: "pending" | "partially_matched" | "fully_matched" | string
+  lines_added_total: number
+  diff_preview: string
+  diff_truncated: boolean
+  commit_id?: number | null
+  commit_sha?: string | null
+  repo_id?: number | null
+  repo_name?: string | null
+}
+
+export interface ProjectProfileDto {
+  project: {
+    id: number
+    name: string
+    repo_count: number
+    repos: Array<{
+      id: number
+      repo_key: string
+      name: string
+      web_url?: string | null
+    }>
+  }
+  period: {
+    start_date: string
+    end_date: string
+  }
+  summary: {
+    commits: number
+    total_lines: number
+    ai_lines: number
+    human_lines: number
+    ai_ratio: number
+    active_users: number
+  }
+  pagination: {
+    total: number
+    page: number
+    page_size: number
+    total_pages: number
+  }
+  recent_commits: ProjectProfileCommitItemDto[]
+  ai_records_pagination: {
+    total: number
+    page: number
+    page_size: number
+    total_pages: number
+  }
+  recent_ai_records: ProjectProfileAIRecordItemDto[]
+}
+
 export function fetchRepos(): Promise<RepoDto[]> {
   return getJson<RepoDto[]>("/repos")
+}
+
+/** 查询项目列表，供仓库页跳转和项目详情页初始化解析项目 ID。 */
+export function fetchProjects(signal?: AbortSignal): Promise<ProjectListItemDto[]> {
+  return getJson<ProjectListItemDto[]>("/projects", signal)
+}
+
+export function updateRepoProjectName(
+  repoId: number,
+  data: { project_name: string },
+  signal?: AbortSignal,
+): Promise<RepoDto> {
+  return patchJson<RepoDto>(`/repos/${repoId}`, data, signal)
 }
 
 export function fetchMonthlyMetrics(
@@ -928,6 +1025,20 @@ export interface UserTrendResponse {
   summary: SummaryMetrics
 }
 
+export interface ProjectTrendResponse {
+  entity: {
+    type: "project"
+    id: number
+    name: string
+  }
+  period: {
+    start: string
+    end: string
+  }
+  data_points: DataPointMetric[]
+  summary: SummaryMetrics
+}
+
 export function fetchRepoTrend(
   options: {
     repo_id?: number
@@ -964,5 +1075,52 @@ export function fetchUserTrend(
   const repoId = options.repo_id ?? -1
   return getJson<UserTrendResponse>(
     `/metrics/users/trend?user_id=${options.user_id}&repo_id=${repoId}&start_date=${options.start_date}&end_date=${options.end_date}`,
+  )
+}
+
+/** 查询项目详情主数据，统一返回摘要、提交明细和 AI 记录分页结果。 */
+export function fetchProjectProfile(
+  projectId: number,
+  options?: {
+    start_date?: string
+    end_date?: string
+    page?: number
+    pageSize?: number
+    commitPage?: number
+    commitPageSize?: number
+    aiPage?: number
+    aiPageSize?: number
+  },
+  signal?: AbortSignal,
+): Promise<ProjectProfileDto> {
+  const params = new URLSearchParams()
+  if (options?.start_date) params.set("start_date", options.start_date)
+  if (options?.end_date) params.set("end_date", options.end_date)
+  if (options?.page) params.set("page", String(options.page))
+  if (options?.pageSize) params.set("page_size", String(options.pageSize))
+  if (options?.commitPage) params.set("commit_page", String(options.commitPage))
+  if (options?.commitPageSize) params.set("commit_page_size", String(options.commitPageSize))
+  if (options?.aiPage) params.set("ai_page", String(options.aiPage))
+  if (options?.aiPageSize) params.set("ai_page_size", String(options.aiPageSize))
+  const query = params.toString()
+
+  return getJson<ProjectProfileDto>(
+    `/projects/${projectId}/profile${query ? `?${query}` : ""}`,
+    signal,
+  )
+}
+
+/** 查询项目维度的 AI 占比趋势，用于项目详情页趋势页签。 */
+export function fetchProjectTrend(
+  options: {
+    project_id: number
+    start_date: string
+    end_date: string
+  },
+  signal?: AbortSignal,
+): Promise<ProjectTrendResponse> {
+  return getJson<ProjectTrendResponse>(
+    `/metrics/projects/trend?project_id=${options.project_id}&start_date=${options.start_date}&end_date=${options.end_date}`,
+    signal,
   )
 }

@@ -943,7 +943,7 @@ export function DepartmentsUsers() {
 
   // 统一跳转到用户个人页。
   const openUserProfile = (user: DepartmentUserDto) => {
-    router.push(`/users/${user.id}?repoId=-1`)
+    router.push(`/users/${user.id}?repoId=-1&sourceTab=dept-users`)
   }
 
   // 提交工号绑定，并同步刷新左右用户列表。

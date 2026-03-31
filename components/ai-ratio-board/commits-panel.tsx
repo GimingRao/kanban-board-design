@@ -183,6 +183,7 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
       repoId: "-1",
       start_date: startDate,
       end_date: endDate,
+      sourceTab: "ai-ratio",
     })
     router.push(`/users/${userId}?${params.toString()}`)
   }

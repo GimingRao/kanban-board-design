@@ -87,6 +87,7 @@ export function Leaderboard({
     const params = new URLSearchParams({ repoId: String(repoId) })
     params.set("start_date", startDate)
     params.set("end_date", endDate)
+    params.set("sourceTab", "ai-ratio")
     router.push(`/users/${userId}?${params.toString()}`)
   }
 

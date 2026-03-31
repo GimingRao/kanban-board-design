@@ -37,6 +37,7 @@ function LeaderboardSkeleton() {
 
 export type SelectedItem =
   | { type: "department"; id: number; name: string }
+  | { type: "project"; id: number; name: string }
   | { type: "user"; id: number; name: string; departmentId?: number }
 
 export interface LeaderboardPanelProps {
