@@ -1,8 +1,0 @@
-export { McpManagement } from './mcp-management'
-export { McpCard } from './mcp-card'
-export { McpFilterBar } from './mcp-filter-bar'
-export { McpDetailDialog } from './mcp-detail-dialog'
-export { ServiceList } from './service-list'
-export { ServiceCard } from './service-card'
-export { ServiceForm } from './service-form'
-export { StatusBadge, CompactStatusBadge } from './status-badge'

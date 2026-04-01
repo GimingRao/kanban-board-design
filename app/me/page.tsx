@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 
 import { AuthGuard } from "@/components/auth/auth-guard"
 import { useCurrentUser } from "@/hooks/use-current-user"
+import { buildUserProfileHref } from "@/lib/user-profile-navigation"
 
 // 将历史个人主页入口统一重定向到现有用户详情页，避免重复维护两套页面。
 function MeRedirectContent() {
@@ -13,7 +14,7 @@ function MeRedirectContent() {
 
   useEffect(() => {
     if (!currentUser?.id) return
-    router.replace(`/users/${currentUser.id}?repoId=-1`)
+    router.replace(buildUserProfileHref({ userId: currentUser.id, repoId: -1 }))
   }, [currentUser, router])
 
   return (

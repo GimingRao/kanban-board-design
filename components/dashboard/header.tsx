@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useCurrentUser } from "@/hooks/use-current-user"
+import { buildUserProfileHref } from "@/lib/user-profile-navigation"
 import { cn } from "@/lib/utils"
 
 interface Tab {
@@ -186,7 +187,7 @@ export function Header({ activeTab, onTabChange }: HeaderProps) {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href={`/users/${currentUser.id}?repoId=-1`} className="cursor-pointer">
+                    <Link href={buildUserProfileHref({ userId: currentUser.id, repoId: -1 })} className="cursor-pointer">
                       <User2 className="mr-2 h-4 w-4" />
                       个人主页
                     </Link>

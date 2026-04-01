@@ -16,6 +16,7 @@ import {
   type DepartmentUserDto,
   type WorkerProfileDto,
 } from "@/lib/api"
+import { buildUserProfileHref } from "@/lib/user-profile-navigation"
 
 // 未分配部门的特殊 ID。
 const UNASSIGNED_DEPT_ID = -1
@@ -943,7 +944,7 @@ export function DepartmentsUsers() {
 
   // 统一跳转到用户个人页。
   const openUserProfile = (user: DepartmentUserDto) => {
-    router.push(`/users/${user.id}?repoId=-1&sourceTab=dept-users`)
+    router.push(buildUserProfileHref({ userId: user.id, repoId: -1, sourceTab: "dept-users" }))
   }
 
   // 提交工号绑定，并同步刷新左右用户列表。

@@ -15,6 +15,10 @@ import {
   type UserProfileCommitItemDto,
   type UserProfileDto,
 } from "@/lib/api"
+import {
+  buildUserProfileHref,
+  resolveUserProfileDateRange,
+} from "@/lib/user-profile-navigation"
 
 const PAGE_SIZE = 10
 
@@ -139,6 +143,10 @@ export default function UserProfilePage() {
   const startDate = searchParams.get("start_date")
   const endDate = searchParams.get("end_date")
   const sourceTab = searchParams.get("sourceTab")
+  const { startDate: effectiveStartDate, endDate: effectiveEndDate } = useMemo(
+    () => resolveUserProfileDateRange(startDate, endDate),
+    [endDate, startDate],
+  )
 
   const [activeTab, setActiveTab] = useState<DetailTab>("commits")
   const [commitPage, setCommitPage] = useState(1)
@@ -150,8 +158,11 @@ export default function UserProfilePage() {
   const [error, setError] = useState<string | null>(null)
 
   const periodLabel = useMemo(
-    () => (data ? getPeriodLabel(data, startDate, endDate) : formatDateRangeLabel(startDate, endDate)),
-    [data, endDate, startDate],
+    () =>
+      data
+        ? getPeriodLabel(data, effectiveStartDate, effectiveEndDate)
+        : formatDateRangeLabel(effectiveStartDate, effectiveEndDate),
+    [data, effectiveEndDate, effectiveStartDate],
   )
   const dashboardHref = useMemo(() => buildDashboardHref(sourceTab), [sourceTab])
 
@@ -161,7 +172,21 @@ export default function UserProfilePage() {
     const today = getTodayString()
     setTrendEndDate(today)
     setTrendStartDate(shiftDate(today, -29))
-  }, [repoId, userId, startDate, endDate])
+  }, [repoId, userId, effectiveStartDate, effectiveEndDate])
+
+  /** 缺少日期参数时回填标准查询串，避免页面刷新后再次触发 422。 */
+  useEffect(() => {
+    if (!Number.isFinite(userId) || userId <= 0) return
+    if (startDate === effectiveStartDate && endDate === effectiveEndDate) return
+    const targetHref = buildUserProfileHref({
+      userId,
+      repoId,
+      sourceTab,
+      startDate: effectiveStartDate,
+      endDate: effectiveEndDate,
+    })
+    window.history.replaceState(null, "", targetHref)
+  }, [effectiveEndDate, effectiveStartDate, endDate, repoId, sourceTab, startDate, userId])
 
   /** 用户详情页同样保证趋势日期区间合法，避免出现倒置和未来日期。 */
   function handleTrendStartDateChange(value: string) {
@@ -200,8 +225,8 @@ export default function UserProfilePage() {
       repoId,
       userId,
       {
-        start_date: startDate ?? undefined,
-        end_date: endDate ?? undefined,
+        start_date: effectiveStartDate,
+        end_date: effectiveEndDate,
         commitPage,
         commitPageSize: PAGE_SIZE,
         aiPage,
@@ -226,7 +251,7 @@ export default function UserProfilePage() {
     return () => {
       abortController.abort()
     }
-  }, [repoId, userId, startDate, endDate, commitPage, aiPage])
+  }, [repoId, userId, effectiveStartDate, effectiveEndDate, commitPage, aiPage])
 
   const canPrevCommit = (data?.pagination.page ?? 1) > 1
   const canNextCommit = (data?.pagination.total_pages ?? 0) > (data?.pagination.page ?? 1)
