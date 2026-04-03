@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowUpRight, GitCommitHorizontal, Sparkles } from "lucide-react"
 
@@ -13,18 +13,9 @@ import {
 
 import type { SelectedItem } from "./leaderboard-panel"
 
-const MIN_VISIBLE_ROWS = 5
-const MAX_VISIBLE_ROWS = 8
-const DEFAULT_VISIBLE_ROWS = 6
-const RESERVED_HEIGHT_PX = 240
-const DEFAULT_ROW_HEIGHT_PX = 54
+const COMMITS_PAGE_SIZE = 7
 
-// 限制可见行数范围，避免面板在不同窗口高度下频繁抖动。
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value))
-}
-
-// 统一格式化提交时间，保证列表展示稳定。
+/** 统一格式化提交时间，保证列表展示稳定。 */
 function formatDateTime(value: string | null) {
   if (!value) return "-"
 
@@ -40,7 +31,7 @@ function formatDateTime(value: string | null) {
   })
 }
 
-// 直接使用后端返回的提交链接，不再依赖 sha 拼接地址。
+/** 直接使用后端返回的提交链接，不再依赖 sha 拼接地址。 */
 function getCommitUrl(item: AICommitsDto["items"][number]) {
   return item.commit.url || null
 }
@@ -57,49 +48,8 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [visibleRows, setVisibleRows] = useState(DEFAULT_VISIBLE_ROWS)
-  const panelRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
-    if (typeof window === "undefined") return
-
-    let rafId = 0
-
-    // 根据当前面板高度动态计算表格行数，尽量让分页始终留在视口内。
-    const updateRows = () => {
-      if (!panelRef.current) return
-
-      const panelTop = panelRef.current.getBoundingClientRect().top
-      const firstRow = panelRef.current.querySelector("tbody tr") as HTMLTableRowElement | null
-      const measuredRowHeight = firstRow?.getBoundingClientRect().height
-      const rowHeight = measuredRowHeight && measuredRowHeight > 0 ? measuredRowHeight : DEFAULT_ROW_HEIGHT_PX
-      const availableHeight = window.innerHeight - panelTop - RESERVED_HEIGHT_PX
-      const rows = clamp(Math.floor(availableHeight / rowHeight), MIN_VISIBLE_ROWS, MAX_VISIBLE_ROWS)
-
-      setVisibleRows((previous) => (previous === rows ? previous : rows))
-    }
-
-    const onResize = () => {
-      if (rafId) {
-        window.cancelAnimationFrame(rafId)
-      }
-
-      rafId = window.requestAnimationFrame(updateRows)
-    }
-
-    updateRows()
-    window.addEventListener("resize", onResize)
-
-    return () => {
-      if (rafId) {
-        window.cancelAnimationFrame(rafId)
-      }
-      window.removeEventListener("resize", onResize)
-    }
-  }, [selectedItem, startDate, endDate, data])
-
-
-  // 切换对象或时间范围时回到第一页，避免沿用旧分页状态。
+  /** 切换对象或时间范围时回到第一页，避免沿用旧分页状态。 */
   useEffect(() => {
     if (!selectedItem) {
       setData(null)
@@ -111,7 +61,7 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
     setPage(1)
   }, [selectedItem, startDate, endDate])
 
-  // 按当前分页和区间统一请求明细数据。
+  /** 按当前分页和时间区间统一请求明细数据。 */
   useEffect(() => {
     if (!selectedItem) return
 
@@ -119,6 +69,8 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
     setLoading(true)
     setError(null)
 
+    // 固定明细分页大小，避免可见行数抖动导致 page_size 改变，
+    // 从而在最后几页让 total_pages 来回切换并触发连续请求。
     const fetchData =
       selectedItem.type === "department"
         ? () =>
@@ -127,7 +79,7 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
               start_date: startDate,
               end_date: endDate,
               page,
-              page_size: visibleRows,
+              page_size: COMMITS_PAGE_SIZE,
             })
         : () =>
             fetchAICommitsByUser({
@@ -135,7 +87,7 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
               start_date: startDate,
               end_date: endDate,
               page,
-              page_size: visibleRows,
+              page_size: COMMITS_PAGE_SIZE,
             })
 
     fetchData()
@@ -156,7 +108,7 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
     return () => {
       cancelled = true
     }
-  }, [page, selectedItem, startDate, endDate, visibleRows])
+  }, [page, selectedItem, startDate, endDate])
 
   const totalPages = data?.pagination.total_pages ?? 0
 
@@ -177,7 +129,7 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
         ? `用户：${selectedItem.name}`
         : null
 
-  // 跳转个人详情时保留当前时间范围，避免上下文丢失。
+  /** 跳转个人详情时保留当前时间范围，避免上下文丢失。 */
   function openUserProfile(userId: number) {
     const params = new URLSearchParams({
       repoId: "-1",
@@ -189,7 +141,7 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
   }
 
   return (
-    <section ref={panelRef} className="dashboard-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <section className="dashboard-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {/* 移动端取消内部主滚动区，避免与页面滚动冲突导致内容看不全。 */}
       {selectionSummary && (
         <div className="border-b border-border/60 px-4 pb-3 pt-4">
@@ -198,9 +150,7 @@ export function CommitsPanel({ selectedItem, startDate, endDate }: CommitsPanelP
               <GitCommitHorizontal className="h-4 w-4 text-accent" />
               {selectionSummary}
             </div>
-            <div className="text-sm text-muted-foreground">
-              当前按所选日期区间筛选提交记录
-            </div>
+            <div className="text-sm text-muted-foreground">当前按所选日期区间筛选提交记录</div>
           </div>
         </div>
       )}
