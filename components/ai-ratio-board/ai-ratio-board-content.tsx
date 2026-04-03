@@ -83,9 +83,9 @@ export function AiRatioBoardContent() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-visible px-4 pb-2 pt-4 sm:px-6 lg:h-full lg:overflow-hidden lg:pb-4">
-      <main className="flex-1 overflow-visible lg:min-h-0 lg:overflow-hidden">
-        <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-full lg:grid-cols-[minmax(340px,0.88fr)_minmax(0,1.42fr)]">
+    <div className="flex min-h-0 flex-1 flex-col overflow-visible px-4 pb-4 pt-4 sm:px-6">
+      <main className="flex-1 overflow-visible">
+        <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(340px,0.88fr)_minmax(0,1.42fr)]">
           <div className="flex min-h-0 flex-col">
             <LeaderboardPanel
               startDate={startDate}
@@ -99,7 +99,7 @@ export function AiRatioBoardContent() {
           <Tabs
             value={detailTab}
             onValueChange={(value) => setDetailTab(value as "commits" | "trend")}
-            className="dashboard-panel flex min-h-0 flex-col overflow-visible p-3 lg:h-full lg:min-h-[780px] lg:overflow-hidden"
+            className="dashboard-panel flex min-h-0 flex-col overflow-visible p-3 lg:min-h-[780px]"
           >
             <div className="flex flex-col items-start gap-3 px-1 pb-1 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-lg font-semibold text-foreground">详情工作区</div>
@@ -121,10 +121,7 @@ export function AiRatioBoardContent() {
               </TabsList>
             </div>
 
-            <TabsContent
-              value="commits"
-              className="mt-3 flex flex-1 flex-col overflow-visible lg:min-h-0 lg:overflow-hidden"
-            >
+            <TabsContent value="commits" className="mt-3 flex flex-1 flex-col overflow-visible">
               <CommitsPanel
                 selectedItem={selectedLeaderboardItem}
                 startDate={startDate}
@@ -132,10 +129,7 @@ export function AiRatioBoardContent() {
               />
             </TabsContent>
 
-            <TabsContent
-              value="trend"
-              className="mt-3 flex flex-1 flex-col overflow-visible lg:min-h-0 lg:overflow-hidden"
-            >
+            <TabsContent value="trend" className="mt-3 flex flex-1 flex-col overflow-visible">
               <TrendChartPanel
                 selectedItem={selectedLeaderboardItem}
                 startDate={chartStartDate}

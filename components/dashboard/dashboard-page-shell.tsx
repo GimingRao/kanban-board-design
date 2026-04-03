@@ -12,7 +12,7 @@ import { RepoManagement } from "@/components/dashboard/repo-management"
 const DEFAULT_TAB = "ai-ratio"
 const VALID_TABS = new Set(["ai-ratio", "dept-users", "repo-management"])
 
-/** 从地址栏参数中解析首页页签，避免详情页返回后丢失原始模块上下文。 */
+/** 从地址栏参数中解析首页标签，避免详情页返回后丢失原始模块上下文。 */
 function resolveDashboardTab(tab: string | null) {
   return tab && VALID_TABS.has(tab) ? tab : DEFAULT_TAB
 }
@@ -51,12 +51,10 @@ export function DashboardPageShell() {
 
   return (
     <AuthGuard>
-      {/* 移动端允许页面自然撑高滚动，桌面端继续保持整屏仪表盘布局。 */}
-      <div className="flex min-h-screen flex-col bg-background lg:h-screen">
+      {/* 允许页面在桌面端按内容自然撑高，避免明细区域被固定视口裁切后无法继续向下滚动。 */}
+      <div className="flex min-h-screen flex-col bg-background">
         <Header activeTab={activeTab} onTabChange={handleTabChange} />
-        <main className="flex-1 overflow-visible lg:min-h-0 lg:overflow-hidden">
-          {renderDashboardContent(activeTab)}
-        </main>
+        <main className="flex-1 overflow-visible">{renderDashboardContent(activeTab)}</main>
       </div>
     </AuthGuard>
   )
